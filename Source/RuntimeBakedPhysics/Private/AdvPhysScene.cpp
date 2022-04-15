@@ -1,17 +1,17 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 
-#include "APhysicsScene.h"
+#include "AdvPhysScene.h"
 
 // Sets default values
-AAPhysicsScene::AAPhysicsScene()
+AAdvPhysScene::AAdvPhysScene()
 {
 	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
 
 }
 
-void AAPhysicsScene::AddPhysObject(UStaticMeshComponent* Component)
+void AAdvPhysScene::AddPhysObject(UStaticMeshComponent* Component)
 {
 	PhysObject NewObj;
 	NewObj.Comp = Component;
@@ -22,12 +22,12 @@ void AAPhysicsScene::AddPhysObject(UStaticMeshComponent* Component)
 	physObjects.Add(NewObj);
 }
 
-void AAPhysicsScene::ClearPhysObjects()
+void AAdvPhysScene::ClearPhysObjects()
 {
 	physObjects.Empty();
 }
 
-void AAPhysicsScene::ResetSimulation()
+void AAdvPhysScene::ResetSimulation()
 {
 	for (const auto& OBJ : physObjects)
 	{
@@ -35,7 +35,7 @@ void AAPhysicsScene::ResetSimulation()
 	}
 }
 
-void AAPhysicsScene::StartSimulation()
+void AAdvPhysScene::StartSimulation()
 {
 	for (const auto& OBJ : physObjects)
 	{
@@ -43,7 +43,7 @@ void AAPhysicsScene::StartSimulation()
 	}
 }
 
-void AAPhysicsScene::StopSimulation()
+void AAdvPhysScene::StopSimulation()
 {
 	for (const auto& OBJ : physObjects)
 	{
@@ -52,16 +52,17 @@ void AAPhysicsScene::StopSimulation()
 }
 
 // Called when the game starts or when spawned
-void AAPhysicsScene::BeginPlay()
+void AAdvPhysScene::BeginPlay()
 {
 	Super::BeginPlay();
 
 }
 
 // Called every frame
-void AAPhysicsScene::Tick(float DeltaTime)
+void AAdvPhysScene::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
 }
+
 

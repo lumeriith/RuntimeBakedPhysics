@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
-#include "APhysicsScene.generated.h"
+#include "AdvPhysScene.generated.h"
 
 struct PhysObject
 {
@@ -15,24 +15,24 @@ struct PhysObject
 };
 
 UCLASS()
-class RUNTIMEBAKEDPHYSICS_API AAPhysicsScene : public AActor
+class RUNTIMEBAKEDPHYSICS_API AAdvPhysScene : public AActor
 {
 	GENERATED_BODY()
+	
+public:	
+	// Sets default values for this actor's properties
+	AAdvPhysScene();
+	UFUNCTION(BlueprintCallable)
+	void AddPhysObject(UStaticMeshComponent* Component);
+	UFUNCTION(BlueprintCallable)
+	void ClearPhysObjects();
 
-public:
-	AAPhysicsScene();
-
 	UFUNCTION(BlueprintCallable)
-		void AddPhysObject(UStaticMeshComponent* Component);
+	void ResetSimulation();
 	UFUNCTION(BlueprintCallable)
-		void ClearPhysObjects();
-
+	void StartSimulation();
 	UFUNCTION(BlueprintCallable)
-		void ResetSimulation();
-	UFUNCTION(BlueprintCallable)
-		void StartSimulation();
-	UFUNCTION(BlueprintCallable)
-		void StopSimulation();
+	void StopSimulation();
 
 protected:
 	virtual void BeginPlay() override;
