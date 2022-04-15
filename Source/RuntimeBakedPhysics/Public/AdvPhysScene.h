@@ -71,6 +71,11 @@ public:
 	bool IsFrameCursorAtEnd() const;
 	
 	virtual void Tick(float DeltaTime) override;
+
+	UPROPERTY(EditAnywhere)
+	bool bUseNoPhysicsSetLocAndRot;
+
+	
 	
 protected:
 	virtual void BeginPlay() override;

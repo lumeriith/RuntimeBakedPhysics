@@ -11,6 +11,8 @@ AAdvPhysScene::AAdvPhysScene()
 
 void AAdvPhysScene::AddPhysObject(UStaticMeshComponent* Component)
 {
+	RecordData = {};
+	Status = {};
 	FPhysObject NewObj;
 	NewObj.Comp = Component;
 	NewObj.InitLoc = Component->GetComponentLocation();
@@ -22,6 +24,8 @@ void AAdvPhysScene::AddPhysObject(UStaticMeshComponent* Component)
 
 void AAdvPhysScene::ClearPhysObjects()
 {
+	RecordData = {};
+	Status = {};
 	PhysObjects.Empty();
 }
 
@@ -51,6 +55,14 @@ void AAdvPhysScene::StopSimulation()
 
 void AAdvPhysScene::Record(const float Interval, const int FrameCount)
 {
+	FMessageLog("AdvPhysScene").Info(
+		FText::Format(
+			FText::FromString("Start Recording, {0} objects, {1} frames, {2}s each."),
+			PhysObjects.Num(),
+			FrameCount,
+			Interval
+			)
+		);
 	Cancel();
 	Status.Current = Recording;
 	Status.StartTime = GetWorld()->GetTimeSeconds();
@@ -67,6 +79,20 @@ void AAdvPhysScene::Record(const float Interval, const int FrameCount)
 
 void AAdvPhysScene::Play()
 {
+	if (RecordData.FrameCount <= 0)
+	{
+		FMessageLog("AdvPhysScene").Error(FText::FromString("Tried to play with no recorded data!"));
+		return;
+	}
+	FMessageLog("AdvPhysScene").Info(
+		FText::Format(
+			FText::FromString("Start Playing, {0} objects, {1} frames, {2}s each."),
+			PhysObjects.Num(),
+			RecordData.FrameCount,
+			RecordData.FrameInterval
+			)
+		);
+	
 	Cancel();
 	Status.Current = Playing;
 	Status.StartTime = GetWorld()->GetTimeSeconds();
@@ -84,7 +110,7 @@ void AAdvPhysScene::Cancel()
 
 bool AAdvPhysScene::IsFrameCursorAtEnd() const
 {
-	return Status.CurrentFrame >= RecordData.FrameCount * PhysObjects.Num();
+	return Status.CurrentFrame >= RecordData.FrameCount;
 }
 
 void AAdvPhysScene::RecordFrame()
@@ -118,8 +144,15 @@ void AAdvPhysScene::PlayFrame()
 	const size_t NumOfObjects = PhysObjects.Num();
 	for (int ObjIndex = 0; ObjIndex < NumOfObjects; ObjIndex++)
 	{
-		const FPhysEntry& Entry = RecordData.Entries[ObjIndex];
-		PhysObjects[Status.CurrentFrame * NumOfObjects + ObjIndex].Comp->SetWorldLocationAndRotation(Entry.Location, Entry.Rotation);
+		const FPhysEntry& Entry = RecordData.Entries[Status.CurrentFrame * NumOfObjects + ObjIndex];
+		if (bUseNoPhysicsSetLocAndRot)
+		{
+			PhysObjects[ObjIndex].Comp->SetWorldLocationAndRotationNoPhysics(Entry.Location, Entry.Rotation);
+		}
+		else
+		{
+			PhysObjects[ObjIndex].Comp->SetWorldLocationAndRotation(Entry.Location, Entry.Rotation);
+		}
 	}
 }
 
@@ -127,7 +160,7 @@ void AAdvPhysScene::AdvanceFrame()
 {
 	if (IsFrameCursorAtEnd())
 	{
-		FMessageLog("AdvPhysScene").Error(FText::FromString("Record cursor out of bounds!"));
+		FMessageLog("AdvPhysScene").Error(FText::FromString("Frame cursor out of bounds!"));
 		return;
 	}
 	Status.CurrentFrame++;
@@ -155,7 +188,9 @@ void AAdvPhysScene::Tick(float DeltaTime)
 		AdvanceFrame();
 		if (IsFrameCursorAtEnd())
 		{
+			FMessageLog("AdvPhysScene").Info(FText::FromString("Recording finished."));
 			Status = {};
+			StopSimulation();
 		}
 		break;
 	case Playing:
@@ -164,6 +199,7 @@ void AAdvPhysScene::Tick(float DeltaTime)
 		AdvanceFrame();
 		if (IsFrameCursorAtEnd())
 		{
+			FMessageLog("AdvPhysScene").Info(FText::FromString("Playing finished."));
 			Status = {};
 		}
 		break;
