@@ -6,12 +6,39 @@
 #include "GameFramework/Actor.h"
 #include "AdvPhysScene.generated.h"
 
-struct PhysObject
+enum EAction : uint8
+{
+	Idle = 0,
+	Recording,
+	Playing
+};
+
+struct FStatus
+{
+	EAction Current;
+	int CurrentFrame;
+	float StartTime;
+};
+
+struct FPhysObject
 {
 	UStaticMeshComponent* Comp;
 	FVector InitLoc;
 	FRotator InitRot;
 	bool ShouldSimulate;
+};
+
+struct FPhysEntry
+{
+	FVector Location;
+	FRotator Rotation;
+};
+
+struct FPhysRecordData
+{
+	int FrameCount;
+	float FrameInterval;
+	TArray<FPhysEntry> Entries;
 };
 
 UCLASS()
@@ -28,17 +55,33 @@ public:
 	void ClearPhysObjects();
 
 	UFUNCTION(BlueprintCallable)
-	void ResetSimulation();
+	void ResetObjects();
 	UFUNCTION(BlueprintCallable)
 	void StartSimulation();
 	UFUNCTION(BlueprintCallable)
 	void StopSimulation();
 
+	UFUNCTION(BlueprintCallable)
+	void Record(const float Interval, const int FrameCount);
+	UFUNCTION(BlueprintCallable)
+	void Play();
+	UFUNCTION(BlueprintCallable)
+	void Cancel();
+
+	bool IsFrameCursorAtEnd() const;
+	
+	virtual void Tick(float DeltaTime) override;
+	
 protected:
 	virtual void BeginPlay() override;
-
-	TArray<PhysObject> physObjects;
-
-public:
-	virtual void Tick(float DeltaTime) override;
+	
+	void RecordFrame();
+	void PlayFrame();
+	void AdvanceFrame();
+	bool ShouldRecordOrPlayFrame() const;
+	
+	
+	FStatus Status;
+	TArray<FPhysObject> PhysObjects;
+	FPhysRecordData RecordData;
 };
