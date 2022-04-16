@@ -16,7 +16,7 @@ enum EAction : uint8
 struct FStatus
 {
 	EAction Current;
-	int CurrentFrame;
+	int RecordCursor;
 	float StartTime;
 };
 
@@ -68,22 +68,23 @@ public:
 	UFUNCTION(BlueprintCallable)
 	void Cancel();
 
-	bool IsFrameCursorAtEnd() const;
+	UPROPERTY(EditAnywhere)
+	bool bEnableInterpolation = true;
 	
 	virtual void Tick(float DeltaTime) override;
-
-	UPROPERTY(EditAnywhere)
-	bool bUseNoPhysicsSetLocAndRot;
-
-	
-	
 protected:
 	virtual void BeginPlay() override;
 	
+	inline bool IsRecordCursorAtEnd() const;
+	inline float GetDuration() const;
+	
+	void TickRecording();
+	void TickPlaying();
+	
 	void RecordFrame();
-	void PlayFrame();
-	void AdvanceFrame();
-	bool ShouldRecordOrPlayFrame() const;
+	void PlayFrame(float Time);
+	
+	inline bool ShouldRecordFrame() const;
 	
 	
 	FStatus Status;

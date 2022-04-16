@@ -74,7 +74,7 @@ void AAdvPhysScene::Record(const float Interval, const int FrameCount)
 	
 	StartSimulation();
 	RecordFrame();
-	AdvanceFrame();
+	Status.RecordCursor++;
 }
 
 void AAdvPhysScene::Play()
@@ -98,8 +98,7 @@ void AAdvPhysScene::Play()
 	Status.StartTime = GetWorld()->GetTimeSeconds();
 
 	StopSimulation();
-	PlayFrame();
-	AdvanceFrame();
+	PlayFrame(0.0f);
 }
 
 void AAdvPhysScene::Cancel()
@@ -108,14 +107,20 @@ void AAdvPhysScene::Cancel()
 	Status = {};
 }
 
-bool AAdvPhysScene::IsFrameCursorAtEnd() const
+bool AAdvPhysScene::IsRecordCursorAtEnd() const
 {
-	return Status.CurrentFrame >= RecordData.FrameCount;
+	return Status.RecordCursor >= RecordData.FrameCount;
 }
+
+float AAdvPhysScene::GetDuration() const
+{
+	return RecordData.FrameCount * RecordData.FrameInterval;
+}
+
 
 void AAdvPhysScene::RecordFrame()
 {
-	if (IsFrameCursorAtEnd())
+	if (IsRecordCursorAtEnd())
 	{
 		FMessageLog("AdvPhysScene").Error(FText::FromString("Current frame out of bounds!"));
 		return;
@@ -127,50 +132,56 @@ void AAdvPhysScene::RecordFrame()
 		const FVector Loc = PhysObjects[ObjIndex].Comp->GetComponentLocation();
 		const FRotator Rot = PhysObjects[ObjIndex].Comp->GetComponentRotation();
 
-		FPhysEntry& Entry = RecordData.Entries[Status.CurrentFrame * NumOfObjects + ObjIndex];
+		FPhysEntry& Entry = RecordData.Entries[Status.RecordCursor * NumOfObjects + ObjIndex];
 		Entry.Location = Loc;
 		Entry.Rotation = Rot;
 	}
 }
 
-void AAdvPhysScene::PlayFrame()
+void AAdvPhysScene::PlayFrame(float Time)
 {
-	if (IsFrameCursorAtEnd())
+	const float frame = Time / RecordData.FrameInterval;
+	int StartFrame = FMath::FloorToInt(frame);
+	int EndFrame = FMath::CeilToInt(frame);
+
+	if (StartFrame >= RecordData.FrameCount)
+		StartFrame = RecordData.FrameCount - 1;
+	if (EndFrame >= RecordData.FrameCount)
+		EndFrame = RecordData.FrameCount - 1;
+	
+	const size_t NumOfObjects = PhysObjects.Num();
+
+	// Set location/rotation as-is
+	if (!bEnableInterpolation || StartFrame == EndFrame)
 	{
-		FMessageLog("AdvPhysScene").Error(FText::FromString("Current frame out of bounds!"));
+		for (int ObjIndex = 0; ObjIndex < NumOfObjects; ObjIndex++)
+		{
+			const FPhysEntry& StartEntry = RecordData.Entries[StartFrame * NumOfObjects + ObjIndex];
+			
+			PhysObjects[ObjIndex].Comp->SetWorldLocationAndRotationNoPhysics(StartEntry.Location, StartEntry.Rotation);
+		}
 		return;
 	}
 
-	const size_t NumOfObjects = PhysObjects.Num();
+	// Interpolate between two frames
+	const float Value = frame - StartFrame;
 	for (int ObjIndex = 0; ObjIndex < NumOfObjects; ObjIndex++)
 	{
-		const FPhysEntry& Entry = RecordData.Entries[Status.CurrentFrame * NumOfObjects + ObjIndex];
-		if (bUseNoPhysicsSetLocAndRot)
-		{
-			PhysObjects[ObjIndex].Comp->SetWorldLocationAndRotationNoPhysics(Entry.Location, Entry.Rotation);
-		}
-		else
-		{
-			PhysObjects[ObjIndex].Comp->SetWorldLocationAndRotation(Entry.Location, Entry.Rotation);
-		}
+		const FPhysEntry& StartEntry = RecordData.Entries[StartFrame * NumOfObjects + ObjIndex];
+		const FPhysEntry& EndEntry = RecordData.Entries[EndFrame * NumOfObjects + ObjIndex];
+
+		const FVector Loc = StartEntry.Location * (1.0f - Value) + EndEntry.Location * Value;
+		const FRotator Rot = StartEntry.Rotation * (1.0f - Value) + EndEntry.Rotation * Value;
+		
+		PhysObjects[ObjIndex].Comp->SetWorldLocationAndRotationNoPhysics(Loc, Rot);
 	}
 }
 
-void AAdvPhysScene::AdvanceFrame()
+bool AAdvPhysScene::ShouldRecordFrame() const
 {
-	if (IsFrameCursorAtEnd())
-	{
-		FMessageLog("AdvPhysScene").Error(FText::FromString("Frame cursor out of bounds!"));
-		return;
-	}
-	Status.CurrentFrame++;
-}
+	if (IsRecordCursorAtEnd()) return false;
 
-bool AAdvPhysScene::ShouldRecordOrPlayFrame() const
-{
-	if (IsFrameCursorAtEnd()) return false;
-
-	const float DesiredGameTime = Status.StartTime + Status.CurrentFrame * RecordData.FrameInterval;
+	const float DesiredGameTime = Status.StartTime + Status.RecordCursor * RecordData.FrameInterval;
 	return GetWorld()->GetTimeSeconds() >= DesiredGameTime;
 }
 
@@ -183,25 +194,10 @@ void AAdvPhysScene::Tick(float DeltaTime)
 	{
 	case Idle: break;
 	case Recording:
-		if (!ShouldRecordOrPlayFrame()) return;
-		RecordFrame();
-		AdvanceFrame();
-		if (IsFrameCursorAtEnd())
-		{
-			FMessageLog("AdvPhysScene").Info(FText::FromString("Recording finished."));
-			Status = {};
-			StopSimulation();
-		}
+		TickRecording();
 		break;
 	case Playing:
-		if (!ShouldRecordOrPlayFrame()) return;
-		PlayFrame();
-		AdvanceFrame();
-		if (IsFrameCursorAtEnd())
-		{
-			FMessageLog("AdvPhysScene").Info(FText::FromString("Playing finished."));
-			Status = {};
-		}
+		TickPlaying();
 		break;
 	default: ;
 	}
@@ -211,6 +207,31 @@ void AAdvPhysScene::Tick(float DeltaTime)
 void AAdvPhysScene::BeginPlay()
 {
 	Super::BeginPlay();
+}
 
+void AAdvPhysScene::TickRecording()
+{
+	if (!ShouldRecordFrame()) return;
+	RecordFrame();
+	Status.RecordCursor++;
+	if (IsRecordCursorAtEnd())
+	{
+		FMessageLog("AdvPhysScene").Info(FText::FromString("Recording finished."));
+		Status = {};
+		StopSimulation();
+	}
+}
+
+void AAdvPhysScene::TickPlaying()
+{
+	const float currentTime = GetWorld()->GetTimeSeconds() - Status.StartTime;
+	
+	PlayFrame(currentTime);
+	
+	if (currentTime > GetDuration())
+	{
+		FMessageLog("AdvPhysScene").Info(FText::FromString("Playing finished."));
+		Status = {};
+	}
 }
 
