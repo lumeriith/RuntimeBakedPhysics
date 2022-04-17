@@ -171,7 +171,7 @@ void AAdvPhysScene::PlayFrame(float Time)
 		const FPhysEntry& EndEntry = RecordData.Entries[EndFrame * NumOfObjects + ObjIndex];
 
 		const FVector Loc = StartEntry.Location * (1.0f - Value) + EndEntry.Location * Value;
-		const FRotator Rot = StartEntry.Rotation * (1.0f - Value) + EndEntry.Rotation * Value;
+		const FRotator Rot = FMath::Lerp(StartEntry.Rotation, EndEntry.Rotation, Value);
 		
 		PhysObjects[ObjIndex].Comp->SetWorldLocationAndRotationNoPhysics(Loc, Rot);
 	}
