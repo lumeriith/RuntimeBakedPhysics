@@ -3,6 +3,8 @@
 
 #include "AdvPhysScene.h"
 
+#include "AdvPhysParent.h"
+
 // Sets default values
 AAdvPhysScene::AAdvPhysScene()
 {
@@ -61,17 +63,17 @@ void AAdvPhysScene::Record(const float Interval, const int FrameCount)
 			PhysObjects.Num(),
 			FrameCount,
 			Interval
-			)
-		);
+		)
+	);
 	Cancel();
 	Status.Current = Recording;
 	Status.StartTime = GetWorld()->GetTimeSeconds();
-	
+
 	RecordData.FrameCount = FrameCount;
 	RecordData.FrameInterval = Interval;
 
 	RecordData.Entries.Init(FPhysEntry(), FrameCount * PhysObjects.Num());
-	
+
 	StartSimulation();
 	RecordFrame();
 	Status.RecordCursor++;
@@ -90,9 +92,9 @@ void AAdvPhysScene::Play()
 			PhysObjects.Num(),
 			RecordData.FrameCount,
 			RecordData.FrameInterval
-			)
-		);
-	
+		)
+	);
+
 	Cancel();
 	Status.Current = Playing;
 	Status.StartTime = GetWorld()->GetTimeSeconds();
@@ -105,6 +107,58 @@ void AAdvPhysScene::Cancel()
 {
 	ResetObjects();
 	Status = {};
+}
+
+void AAdvPhysScene::DuplicateToSubWorld()
+{
+	if (!SubWorld)
+	{
+		FMessageLog("AdvPhysScene").Error(FText::FromString("SubWorld not found!"));
+		return;
+	}
+
+	for (const auto& Obj : PhysObjects)
+	{
+		auto NewComp =
+			NewObject<UStaticMeshComponent>(SubWorldActor, UStaticMeshComponent::StaticClass());
+		NewComp->RegisterComponent();
+		NewComp->AttachToComponent(SubWorldActor->Scene,
+			FAttachmentTransformRules::SnapToTargetIncludingScale);
+		NewComp->SetStaticMesh(Obj.Comp->GetStaticMesh());
+		NewComp->SetMaterial(0, Obj.Comp->GetMaterial(0));
+		SubWorldComps.Add(NewComp);
+	}
+
+	FMessageLog("AdvPhysScene").Info(
+		FText::Format(
+			FText::FromString("Duplicated {0} physics objects to sub-world actor. (Now total {1})"),
+			PhysObjects.Num(),
+			SubWorldComps.Num()
+		)
+	);
+}
+
+void AAdvPhysScene::ClearSubWorld()
+{
+	if (!SubWorld)
+	{
+		FMessageLog("AdvPhysScene").Error(FText::FromString("SubWorld not found!"));
+		return;
+	}
+
+	for (const auto& Comp : SubWorldComps)
+	{
+		Comp->DestroyComponent();
+	}
+
+	FMessageLog("AdvPhysScene").Info(
+		FText::Format(
+			FText::FromString("Cleared {0} physics objects in sub-world actor."),
+			SubWorldComps.Num()
+		)
+	);
+	
+	SubWorldComps.Empty();
 }
 
 bool AAdvPhysScene::IsRecordCursorAtEnd() const
@@ -148,7 +202,7 @@ void AAdvPhysScene::PlayFrame(float Time)
 		StartFrame = RecordData.FrameCount - 1;
 	if (EndFrame >= RecordData.FrameCount)
 		EndFrame = RecordData.FrameCount - 1;
-	
+
 	const size_t NumOfObjects = PhysObjects.Num();
 
 	// Set location/rotation as-is
@@ -157,7 +211,7 @@ void AAdvPhysScene::PlayFrame(float Time)
 		for (int ObjIndex = 0; ObjIndex < NumOfObjects; ObjIndex++)
 		{
 			const FPhysEntry& StartEntry = RecordData.Entries[StartFrame * NumOfObjects + ObjIndex];
-			
+
 			PhysObjects[ObjIndex].Comp->SetWorldLocationAndRotationNoPhysics(StartEntry.Location, StartEntry.Rotation);
 		}
 		return;
@@ -172,7 +226,7 @@ void AAdvPhysScene::PlayFrame(float Time)
 
 		const FVector Loc = StartEntry.Location * (1.0f - Value) + EndEntry.Location * Value;
 		const FRotator Rot = FMath::Lerp(StartEntry.Rotation, EndEntry.Rotation, Value);
-		
+
 		PhysObjects[ObjIndex].Comp->SetWorldLocationAndRotationNoPhysics(Loc, Rot);
 	}
 }
@@ -190,7 +244,7 @@ void AAdvPhysScene::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
-	switch(Status.Current)
+	switch (Status.Current)
 	{
 	case Idle: break;
 	case Recording:
@@ -199,14 +253,43 @@ void AAdvPhysScene::Tick(float DeltaTime)
 	case Playing:
 		TickPlaying();
 		break;
-	default: ;
+	default:;
 	}
 }
 
-// Called when the game starts or when spawned
+
 void AAdvPhysScene::BeginPlay()
 {
 	Super::BeginPlay();
+	if (bEnableSubWorld)
+	{
+		FMessageLog("AdvPhysScene").Info(FText::FromString("Creating SubWorld"));
+		const auto MainWorld = GetWorld();
+		SubWorld = UWorld::CreateWorld(EWorldType::Editor, true, TEXT("SubWorld"));
+
+		// Prevent crash on BeginPlay
+		auto& CurContext = GEngine->CreateNewWorldContext(EWorldType::Editor);
+		CurContext.SetCurrentWorld(SubWorld);
+
+		// SubWorld->SetGameInstance(MainWorld->GetGameInstance());
+		// SubWorld->SetGameMode(MainWorld->URL);
+		SubWorld->bShouldSimulatePhysics = true;
+
+		SubWorld->InitializeActorsForPlay(MainWorld->URL);
+		SubWorld->BeginPlay();
+		SubWorldActor = SubWorld->SpawnActor<AAdvPhysParent>(AAdvPhysParent::StaticClass());
+		SubWorldActor->RegisterAllActorTickFunctions(true, true);
+	}
+}
+
+void AAdvPhysScene::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	Super::EndPlay(EndPlayReason);
+	if (SubWorld)
+	{
+		FMessageLog("AdvPhysScene").Info(FText::FromString("Destroying SubWorld"));
+		SubWorld->DestroyWorld(true);
+	}
 }
 
 void AAdvPhysScene::TickRecording()
@@ -225,9 +308,9 @@ void AAdvPhysScene::TickRecording()
 void AAdvPhysScene::TickPlaying()
 {
 	const float currentTime = GetWorld()->GetTimeSeconds() - Status.StartTime;
-	
+
 	PlayFrame(currentTime);
-	
+
 	if (currentTime > GetDuration())
 	{
 		FMessageLog("AdvPhysScene").Info(FText::FromString("Playing finished."));
