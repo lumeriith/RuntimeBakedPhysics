@@ -3,7 +3,9 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "AdvPhysDataTypes.h"
 #include "AdvPhysParent.h"
+#include "PhysSimulator.h"
 #include "GameFramework/Actor.h"
 #include "AdvPhysScene.generated.h"
 
@@ -17,29 +19,8 @@ enum EAction : uint8
 struct FStatus
 {
 	EAction Current;
-	int RecordCursor;
 	float StartTime;
-};
-
-struct FPhysObject
-{
-	UStaticMeshComponent* Comp;
-	FVector InitLoc;
-	FRotator InitRot;
-	bool ShouldSimulate;
-};
-
-struct FPhysEntry
-{
-	FVector Location;
-	FRotator Rotation;
-};
-
-struct FPhysRecordData
-{
-	int FrameCount;
-	float FrameInterval;
-	TArray<FPhysEntry> Entries;
+	int Cursor;
 };
 
 UCLASS()
@@ -48,20 +29,13 @@ class RUNTIMEBAKEDPHYSICS_API AAdvPhysScene : public AActor
 	GENERATED_BODY()
 
 public:
-	// Sets default values for this actor's properties
 	AAdvPhysScene();
+	
 	UFUNCTION(BlueprintCallable)
 		void AddPhysObject(UStaticMeshComponent* Component);
 	UFUNCTION(BlueprintCallable)
 		void ClearPhysObjects();
-
-	UFUNCTION(BlueprintCallable)
-		void ResetObjects();
-	UFUNCTION(BlueprintCallable)
-		void StartSimulation();
-	UFUNCTION(BlueprintCallable)
-		void StopSimulation();
-
+	
 	UFUNCTION(BlueprintCallable)
 		void Record(const float Interval, const int FrameCount);
 	UFUNCTION(BlueprintCallable)
@@ -69,47 +43,30 @@ public:
 	UFUNCTION(BlueprintCallable)
 		void Cancel();
 
-	UFUNCTION(BlueprintCallable)
-		void DuplicateToSubWorld();
-
-	UFUNCTION(BlueprintCallable)
-		void ClearSubWorld();
-	
-
 	UPROPERTY(EditAnywhere)
 		bool bEnableInterpolation = true;
 
 	UPROPERTY(EditAnywhere)
-		bool bEnableSubWorld = true;
-
+		TSubclassOf<AActor> TestActor;
+	
 	virtual void Tick(float DeltaTime) override;
 protected:
 	virtual void BeginPlay() override;
 
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
-	inline bool IsRecordCursorAtEnd() const;
+	inline bool IsCursorAtEnd() const;
 	inline float GetDuration() const;
 
-	void TickRecording();
-	void TickPlaying();
+	void DoRecordTick();
+	void DoPlayTick();
 
-	void RecordFrame();
 	void PlayFrame(float Time);
 
-	inline bool ShouldRecordFrame() const;
+	void ResetPhysObjectsPosition();
 
-
+	PhysSimulator Simulator;
 	FStatus Status;
 	TArray<FPhysObject> PhysObjects;
 	FPhysRecordData RecordData;
-
-	UPROPERTY()
-	UWorld *SubWorld;
-
-	UPROPERTY()
-	AAdvPhysParent *SubWorldActor;
-
-	UPROPERTY()
-	TArray<UStaticMeshComponent*> SubWorldComps;
 };

@@ -16,5 +16,5 @@ public:
 	AAdvPhysParent(const FObjectInitializer& ObjectInitializer);
 
 	UPROPERTY()
-	class USceneComponent *Scene;
+	USceneComponent *Scene;
 };

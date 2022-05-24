@@ -15,13 +15,16 @@ void AAdvPhysScene::AddPhysObject(UStaticMeshComponent* Component)
 {
 	RecordData = {};
 	Status = {};
+	
 	FPhysObject NewObj;
 	NewObj.Comp = Component;
 	NewObj.InitLoc = Component->GetComponentLocation();
 	NewObj.InitRot = Component->GetComponentRotation();
-	NewObj.ShouldSimulate = Component->IsSimulatingPhysics();
+	NewObj.IsStatic = !Component->IsSimulatingPhysics();
 	Component->SetSimulatePhysics(false);
 	PhysObjects.Add(NewObj);
+	
+	Simulator.AddToScene(Component);
 }
 
 void AAdvPhysScene::ClearPhysObjects()
@@ -29,29 +32,14 @@ void AAdvPhysScene::ClearPhysObjects()
 	RecordData = {};
 	Status = {};
 	PhysObjects.Empty();
+	Simulator.ResetScene();
 }
 
-void AAdvPhysScene::ResetObjects()
+void AAdvPhysScene::ResetPhysObjectsPosition()
 {
-	for (const auto& OBJ : PhysObjects)
+	for (const auto& Obj : PhysObjects)
 	{
-		OBJ.Comp->SetWorldLocationAndRotation(OBJ.InitLoc, OBJ.InitRot);
-	}
-}
-
-void AAdvPhysScene::StartSimulation()
-{
-	for (const auto& OBJ : PhysObjects)
-	{
-		OBJ.Comp->SetSimulatePhysics(OBJ.ShouldSimulate);
-	}
-}
-
-void AAdvPhysScene::StopSimulation()
-{
-	for (const auto& OBJ : PhysObjects)
-	{
-		OBJ.Comp->SetSimulatePhysics(false);
+		Obj.Comp->SetWorldLocationAndRotation(Obj.InitLoc, Obj.InitRot);
 	}
 }
 
@@ -67,16 +55,8 @@ void AAdvPhysScene::Record(const float Interval, const int FrameCount)
 	);
 	Cancel();
 	Status.Current = Recording;
-	Status.StartTime = GetWorld()->GetTimeSeconds();
-
-	RecordData.FrameCount = FrameCount;
-	RecordData.FrameInterval = Interval;
-
-	RecordData.Entries.Init(FPhysEntry(), FrameCount * PhysObjects.Num());
-
-	StartSimulation();
-	RecordFrame();
-	Status.RecordCursor++;
+	RecordData = {};
+	Simulator.StartRecord(&RecordData, Interval, FrameCount);
 }
 
 void AAdvPhysScene::Play()
@@ -99,97 +79,35 @@ void AAdvPhysScene::Play()
 	Status.Current = Playing;
 	Status.StartTime = GetWorld()->GetTimeSeconds();
 
-	StopSimulation();
+	for (const auto& OBJ : PhysObjects)
+	{
+		OBJ.Comp->SetSimulatePhysics(false);
+	}
 	PlayFrame(0.0f);
 }
 
 void AAdvPhysScene::Cancel()
 {
-	ResetObjects();
+	ResetPhysObjectsPosition();
+	if (Simulator.IsRecording())
+	{
+		Simulator.StopRecord();
+		while (Simulator.IsRecording())
+		{
+			// Spin lock TODO
+		}
+	}
 	Status = {};
 }
 
-void AAdvPhysScene::DuplicateToSubWorld()
+bool AAdvPhysScene::IsCursorAtEnd() const
 {
-	if (!SubWorld)
-	{
-		FMessageLog("AdvPhysScene").Error(FText::FromString("SubWorld not found!"));
-		return;
-	}
-
-	for (const auto& Obj : PhysObjects)
-	{
-		auto NewComp =
-			NewObject<UStaticMeshComponent>(SubWorldActor, UStaticMeshComponent::StaticClass());
-		NewComp->RegisterComponent();
-		NewComp->AttachToComponent(SubWorldActor->Scene,
-			FAttachmentTransformRules::SnapToTargetIncludingScale);
-		NewComp->SetStaticMesh(Obj.Comp->GetStaticMesh());
-		NewComp->SetMaterial(0, Obj.Comp->GetMaterial(0));
-		SubWorldComps.Add(NewComp);
-	}
-
-	FMessageLog("AdvPhysScene").Info(
-		FText::Format(
-			FText::FromString("Duplicated {0} physics objects to sub-world actor. (Now total {1})"),
-			PhysObjects.Num(),
-			SubWorldComps.Num()
-		)
-	);
-}
-
-void AAdvPhysScene::ClearSubWorld()
-{
-	if (!SubWorld)
-	{
-		FMessageLog("AdvPhysScene").Error(FText::FromString("SubWorld not found!"));
-		return;
-	}
-
-	for (const auto& Comp : SubWorldComps)
-	{
-		Comp->DestroyComponent();
-	}
-
-	FMessageLog("AdvPhysScene").Info(
-		FText::Format(
-			FText::FromString("Cleared {0} physics objects in sub-world actor."),
-			SubWorldComps.Num()
-		)
-	);
-	
-	SubWorldComps.Empty();
-}
-
-bool AAdvPhysScene::IsRecordCursorAtEnd() const
-{
-	return Status.RecordCursor >= RecordData.FrameCount;
+	return Status.Cursor >= RecordData.FrameCount;
 }
 
 float AAdvPhysScene::GetDuration() const
 {
 	return RecordData.FrameCount * RecordData.FrameInterval;
-}
-
-
-void AAdvPhysScene::RecordFrame()
-{
-	if (IsRecordCursorAtEnd())
-	{
-		FMessageLog("AdvPhysScene").Error(FText::FromString("Current frame out of bounds!"));
-		return;
-	}
-
-	const size_t NumOfObjects = PhysObjects.Num();
-	for (int ObjIndex = 0; ObjIndex < NumOfObjects; ObjIndex++)
-	{
-		const FVector Loc = PhysObjects[ObjIndex].Comp->GetComponentLocation();
-		const FRotator Rot = PhysObjects[ObjIndex].Comp->GetComponentRotation();
-
-		FPhysEntry& Entry = RecordData.Entries[Status.RecordCursor * NumOfObjects + ObjIndex];
-		Entry.Location = Loc;
-		Entry.Rotation = Rot;
-	}
 }
 
 void AAdvPhysScene::PlayFrame(float Time)
@@ -210,7 +128,7 @@ void AAdvPhysScene::PlayFrame(float Time)
 	{
 		for (int ObjIndex = 0; ObjIndex < NumOfObjects; ObjIndex++)
 		{
-			const FPhysEntry& StartEntry = RecordData.Entries[StartFrame * NumOfObjects + ObjIndex];
+			const FPhysFrame& StartEntry = RecordData.Frames[StartFrame * NumOfObjects + ObjIndex];
 
 			PhysObjects[ObjIndex].Comp->SetWorldLocationAndRotationNoPhysics(StartEntry.Location, StartEntry.Rotation);
 		}
@@ -221,22 +139,14 @@ void AAdvPhysScene::PlayFrame(float Time)
 	const float Value = frame - StartFrame;
 	for (int ObjIndex = 0; ObjIndex < NumOfObjects; ObjIndex++)
 	{
-		const FPhysEntry& StartEntry = RecordData.Entries[StartFrame * NumOfObjects + ObjIndex];
-		const FPhysEntry& EndEntry = RecordData.Entries[EndFrame * NumOfObjects + ObjIndex];
+		const FPhysFrame& StartEntry = RecordData.Frames[StartFrame * NumOfObjects + ObjIndex];
+		const FPhysFrame& EndEntry = RecordData.Frames[EndFrame * NumOfObjects + ObjIndex];
 
 		const FVector Loc = StartEntry.Location * (1.0f - Value) + EndEntry.Location * Value;
 		const FRotator Rot = FMath::Lerp(StartEntry.Rotation, EndEntry.Rotation, Value);
 
 		PhysObjects[ObjIndex].Comp->SetWorldLocationAndRotationNoPhysics(Loc, Rot);
 	}
-}
-
-bool AAdvPhysScene::ShouldRecordFrame() const
-{
-	if (IsRecordCursorAtEnd()) return false;
-
-	const float DesiredGameTime = Status.StartTime + Status.RecordCursor * RecordData.FrameInterval;
-	return GetWorld()->GetTimeSeconds() >= DesiredGameTime;
 }
 
 // Called every frame
@@ -248,64 +158,37 @@ void AAdvPhysScene::Tick(float DeltaTime)
 	{
 	case Idle: break;
 	case Recording:
-		TickRecording();
+		DoRecordTick();
 		break;
 	case Playing:
-		TickPlaying();
+		DoPlayTick();
 		break;
 	default:;
 	}
 }
 
-
 void AAdvPhysScene::BeginPlay()
 {
 	Super::BeginPlay();
-	if (bEnableSubWorld)
-	{
-		FMessageLog("AdvPhysScene").Info(FText::FromString("Creating SubWorld"));
-		const auto MainWorld = GetWorld();
-		SubWorld = UWorld::CreateWorld(EWorldType::Editor, true, TEXT("SubWorld"));
-
-		// Prevent crash on BeginPlay
-		auto& CurContext = GEngine->CreateNewWorldContext(EWorldType::Editor);
-		CurContext.SetCurrentWorld(SubWorld);
-
-		// SubWorld->SetGameInstance(MainWorld->GetGameInstance());
-		// SubWorld->SetGameMode(MainWorld->URL);
-		SubWorld->bShouldSimulatePhysics = true;
-
-		SubWorld->InitializeActorsForPlay(MainWorld->URL);
-		SubWorld->BeginPlay();
-		SubWorldActor = SubWorld->SpawnActor<AAdvPhysParent>(AAdvPhysParent::StaticClass());
-		SubWorldActor->RegisterAllActorTickFunctions(true, true);
-	}
+	Simulator.Initialize();
 }
 
 void AAdvPhysScene::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	Super::EndPlay(EndPlayReason);
-	if (SubWorld)
-	{
-		FMessageLog("AdvPhysScene").Info(FText::FromString("Destroying SubWorld"));
-		SubWorld->DestroyWorld(true);
-	}
+	Simulator.Cleanup();
 }
 
-void AAdvPhysScene::TickRecording()
+void AAdvPhysScene::DoRecordTick()
 {
-	if (!ShouldRecordFrame()) return;
-	RecordFrame();
-	Status.RecordCursor++;
-	if (IsRecordCursorAtEnd())
+	if (RecordData.Finished)
 	{
 		FMessageLog("AdvPhysScene").Info(FText::FromString("Recording finished."));
 		Status = {};
-		StopSimulation();
 	}
 }
 
-void AAdvPhysScene::TickPlaying()
+void AAdvPhysScene::DoPlayTick()
 {
 	const float currentTime = GetWorld()->GetTimeSeconds() - Status.StartTime;
 
