@@ -4,10 +4,10 @@
 
 #include "AdvPhysScene.h"
 
-PhysSimulator::PhysSimulator(): RecordData(nullptr), gFoundation(nullptr), gPhysics(nullptr), gDispatcher(nullptr),
-                                gScene(nullptr),
-                                gMaterial(nullptr),
-                                gPvd(nullptr),
+PhysSimulator::PhysSimulator(): RecordData(nullptr), Foundation(nullptr), Physics(nullptr), Dispatcher(nullptr),
+                                Scene(nullptr),
+                                Material(nullptr),
+                                Pvd(nullptr),
                                 bIsInitialized(false),
                                 bIsRecording(false),
                                 bWantsToStop(false)
@@ -27,32 +27,36 @@ void PhysSimulator::Initialize()
 			);
 		return;
 	}
-	gFoundation = PxCreateFoundation(PX_FOUNDATION_VERSION, gAllocator, gErrorCallback);
+	FMessageLog("PhysSimulator").Info(
+		FText::FromString("Initializing")
+		);
+	
+	Foundation = PxCreateFoundation(PX_FOUNDATION_VERSION, Allocator, ErrorCallback);
 
-	gPvd = PxCreatePvd(*gFoundation);
+	Pvd = PxCreatePvd(*Foundation);
 	PxPvdTransport* transport = PxDefaultPvdSocketTransportCreate("localhost", 5425, 10);
-	gPvd->connect(*transport,PxPvdInstrumentationFlag::eALL);
+	Pvd->connect(*transport,PxPvdInstrumentationFlag::eALL);
 
-	gPhysics = PxCreatePhysics(PX_PHYSICS_VERSION, *gFoundation, PxTolerancesScale(),true,gPvd);
+	Physics = PxCreatePhysics(PX_PHYSICS_VERSION, *Foundation, PxTolerancesScale(),true,Pvd);
 
-	PxSceneDesc sceneDesc(gPhysics->getTolerancesScale());
+	PxSceneDesc sceneDesc(Physics->getTolerancesScale());
 	sceneDesc.gravity = PxVec3(0.0f, -9.81f, 0.0f);
-	gDispatcher = PxDefaultCpuDispatcherCreate(2);
-	sceneDesc.cpuDispatcher	= gDispatcher;
+	Dispatcher = PxDefaultCpuDispatcherCreate(2);
+	sceneDesc.cpuDispatcher	= Dispatcher;
 	sceneDesc.filterShader	= PxDefaultSimulationFilterShader;
-	gScene = gPhysics->createScene(sceneDesc);
+	Scene = Physics->createScene(sceneDesc);
 
-	PxPvdSceneClient* pvdClient = gScene->getScenePvdClient();
+	PxPvdSceneClient* pvdClient = Scene->getScenePvdClient();
 	if(pvdClient)
 	{
 		pvdClient->setScenePvdFlag(PxPvdSceneFlag::eTRANSMIT_CONSTRAINTS, true);
 		pvdClient->setScenePvdFlag(PxPvdSceneFlag::eTRANSMIT_CONTACTS, true);
 		pvdClient->setScenePvdFlag(PxPvdSceneFlag::eTRANSMIT_SCENEQUERIES, true);
 	}
-	gMaterial = gPhysics->createMaterial(0.5f, 0.5f, 0.6f);
+	Material = Physics->createMaterial(0.5f, 0.5f, 0.6f);
 
-	PxRigidStatic* groundPlane = PxCreatePlane(*gPhysics, PxPlane(0,1,0,0), *gMaterial);
-	gScene->addActor(*groundPlane);
+	PxRigidStatic* groundPlane = PxCreatePlane(*Physics, PxPlane(0,1,0,0), *Material);
+	Scene->addActor(*groundPlane);
 	
 
 	
@@ -61,16 +65,16 @@ void PhysSimulator::Initialize()
 		const PxTransform& t =PxTransform(PxVec3(0,0,stackZ-=10.0f));
 		PxU32 size = 10;
 		PxReal halfExtent = 2.0f;
-		PxShape* shape = gPhysics->createShape(PxBoxGeometry(halfExtent, halfExtent, halfExtent), *gMaterial);
+		PxShape* shape = Physics->createShape(PxBoxGeometry(halfExtent, halfExtent, halfExtent), *Material);
 		for(PxU32 j=0; j<size;j++)
 		{
 			for(PxU32 k=0;k<size-i;k++)
 			{
 				PxTransform localTm(PxVec3(PxReal(k*2) - PxReal(size-j), PxReal(j*2+1), 0) * halfExtent);
-				PxRigidDynamic* body = gPhysics->createRigidDynamic(t.transform(localTm));
+				PxRigidDynamic* body = Physics->createRigidDynamic(t.transform(localTm));
 				body->attachShape(*shape);
 				PxRigidBodyExt::updateMassAndInertia(*body, 10.0f);
-				gScene->addActor(*body);
+				Scene->addActor(*body);
 			}
 		}
 		shape->release();
@@ -89,15 +93,17 @@ void PhysSimulator::Cleanup()
 			);
 		return;
 	}
-	
-	gScene->release();
-	gDispatcher->release();
-	gPhysics->release();	
-	PxPvdTransport* transport = gPvd->getTransport();
-	gPvd->release();
+	FMessageLog("PhysSimulator").Info(
+		FText::FromString("Cleaning up")
+		);
+	Scene->release();
+	Dispatcher->release();
+	Physics->release();	
+	PxPvdTransport* transport = Pvd->getTransport();
+	Pvd->release();
 	transport->release();
 	
-	gFoundation->release();
+	Foundation->release();
 	
 	bIsInitialized = false;
 }
@@ -142,9 +148,8 @@ void PhysSimulator::StartRecord(FPhysRecordData* Destination, float RecordInterv
 	RecordData->Frames.Reserve(FrameCount);
 	RecordData->Frames.AddZeroed(FrameCount);
 	bWantsToStop = false;
-	gScene->simulate(1.0f/60.0f);
-	gScene->fetchResults(true);
 	RecordThread = std::thread(&PhysSimulator::RecordInternal, this);
+	RecordThread.detach();
 }
 
 void PhysSimulator::StopRecord()
@@ -178,8 +183,8 @@ void PhysSimulator::RecordInternal()
 			bIsRecording = false;
 			return;
 		}
-		gScene->simulate(1.0f/60.0f);
-		gScene->fetchResults(true);
+		Scene->simulate(RecordData->FrameInterval);
+		Scene->fetchResults(true);
 		RecordData->Progress = static_cast<float>(i + 1) / RecordData->FrameCount;
 	}
 	RecordData->Finished = true;

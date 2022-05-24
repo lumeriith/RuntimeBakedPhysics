@@ -40,18 +40,18 @@ protected:
 
 	FPhysRecordData* RecordData;
 
-	PxDefaultAllocator		gAllocator;
-	PxDefaultErrorCallback	gErrorCallback;
+	PxDefaultAllocator		Allocator;
+	PxDefaultErrorCallback	ErrorCallback;
 
-	PxFoundation*			gFoundation;
-	PxPhysics*				gPhysics;
+	PxFoundation*			Foundation;
+	PxPhysics*				Physics;
 
-	PxDefaultCpuDispatcher*	gDispatcher;
-	PxScene*				gScene;
+	PxDefaultCpuDispatcher*	Dispatcher;
+	PxScene*				Scene;
 
-	PxMaterial*				gMaterial;
+	PxMaterial*				Material;
 
-	PxPvd*                  gPvd;
+	PxPvd*                  Pvd;
 
 	PxReal stackZ = 10.0f;
 	
