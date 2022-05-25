@@ -32,7 +32,7 @@ void AAdvPhysScene::ClearPhysObjects()
 	RecordData = {};
 	Status = {};
 	PhysObjects.Empty();
-	Simulator.ResetScene();
+	Simulator.ClearScene();
 }
 
 void AAdvPhysScene::ResetPhysObjectsPosition()
@@ -56,7 +56,7 @@ void AAdvPhysScene::Record(const float Interval, const int FrameCount)
 	Cancel();
 	Status.Current = Recording;
 	RecordData = {};
-	Simulator.StartRecord(&RecordData, Interval, FrameCount);
+	Simulator.StartRecord(&RecordData, Interval, FrameCount, GetWorld()->GetGravityZ());
 }
 
 void AAdvPhysScene::Play()
@@ -128,7 +128,7 @@ void AAdvPhysScene::PlayFrame(float Time)
 	{
 		for (int ObjIndex = 0; ObjIndex < NumOfObjects; ObjIndex++)
 		{
-			const FPhysFrame& StartEntry = RecordData.Frames[StartFrame * NumOfObjects + ObjIndex];
+			const FPhysObjLocRot& StartEntry = RecordData.ObjLocRot[StartFrame * NumOfObjects + ObjIndex];
 
 			PhysObjects[ObjIndex].Comp->SetWorldLocationAndRotationNoPhysics(StartEntry.Location, StartEntry.Rotation);
 		}
@@ -139,8 +139,8 @@ void AAdvPhysScene::PlayFrame(float Time)
 	const float Value = frame - StartFrame;
 	for (int ObjIndex = 0; ObjIndex < NumOfObjects; ObjIndex++)
 	{
-		const FPhysFrame& StartEntry = RecordData.Frames[StartFrame * NumOfObjects + ObjIndex];
-		const FPhysFrame& EndEntry = RecordData.Frames[EndFrame * NumOfObjects + ObjIndex];
+		const FPhysObjLocRot& StartEntry = RecordData.ObjLocRot[StartFrame * NumOfObjects + ObjIndex];
+		const FPhysObjLocRot& EndEntry = RecordData.ObjLocRot[EndFrame * NumOfObjects + ObjIndex];
 
 		const FVector Loc = StartEntry.Location * (1.0f - Value) + EndEntry.Location * Value;
 		const FRotator Rot = FMath::Lerp(StartEntry.Rotation, EndEntry.Rotation, Value);

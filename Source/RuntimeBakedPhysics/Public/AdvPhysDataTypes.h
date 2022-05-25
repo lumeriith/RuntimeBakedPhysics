@@ -8,7 +8,7 @@ struct FPhysObject
 	bool IsStatic;
 };
 
-struct FPhysFrame
+struct FPhysObjLocRot
 {
 	FVector Location;
 	FRotator Rotation;
@@ -20,5 +20,5 @@ struct FPhysRecordData
 	float Progress;
 	int FrameCount;
 	float FrameInterval;
-	TArray<FPhysFrame> Frames;
+	TArray<FPhysObjLocRot> ObjLocRot;
 };

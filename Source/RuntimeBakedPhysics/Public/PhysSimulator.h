@@ -3,14 +3,7 @@
 #pragma once
 
 #include <thread>
-#include "CoreMinimal.h"
 #include "AdvPhysDataTypes.h"
-
-#include "PhysicsPublic.h"
-#include "PhysXPublic.h"
-#include "Runtime/Engine/Private/PhysicsEngine/PhysXSupport.h"
-#include "PhysXIncludes.h"
-
 
 #include "ThirdParty/PhysX3/PhysX_3.4/Include/PxPhysics.h"
 #include "ThirdParty/PhysX3/PhysX_3.4/Include/PxPhysicsAPI.h"
@@ -27,16 +20,17 @@ public:
 	void Cleanup();
 
 	// Scene-Related
-	void ResetScene();
-	void AddToScene(UStaticMeshComponent* Comp);
+	void ClearScene();
+	void AddToScene(UStaticMeshComponent* Comp, bool );
 
-	void StartRecord(FPhysRecordData* Destination, float RecordInterval, int FrameCount);
+	void StartRecord(FPhysRecordData* Destination, float RecordInterval, int FrameCount, float GravityZ);
 	void StopRecord();
 	// Others
 	bool IsInitialized() const;
 	bool IsRecording() const;
 protected:
 	void RecordInternal();
+	void CreateSceneInternal();
 
 	FPhysRecordData* RecordData;
 
@@ -49,7 +43,7 @@ protected:
 	PxDefaultCpuDispatcher*	Dispatcher;
 	PxScene*				Scene;
 
-	PxMaterial*				Material;
+	PxMaterial*				TestMaterial;
 
 	PxPvd*                  Pvd;
 
@@ -59,4 +53,8 @@ protected:
 	bool bIsRecording;
 	bool bWantsToStop;
 	std::thread RecordThread;
+
+	std::unordered_map<uint64, PxShape*> Shapes;
+	std::vector<PxMaterial*> Materials;
+	std::vector<PxRigidDynamic*> ObservedBodies;
 };
