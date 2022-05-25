@@ -61,3 +61,65 @@ FORCEINLINE_DEBUGGABLE FVector4 P2U4BaryCoord(const PxVec3& PVec)
 {
 	return FVector4(PVec.x, PVec.y, 1.f - PVec.x - PVec.y, PVec.z);
 }
+
+///////////////////// Unreal to PhysX conversion /////////////////////
+
+inline PxTransform UMatrix2PTransform(const FMatrix&& UTM)
+{
+	PxQuat PQuat = U2PQuat(UTM.ToQuat());
+	PxVec3 PPos = U2PVector(UTM.GetOrigin());
+
+	PxTransform Result(PPos, PQuat);
+
+	return Result;
+}
+
+inline PxMat44 U2PMatrix(const FMatrix& UTM)
+{
+	PxMat44 Result;
+
+	const physx::PxMat44 *MatPtr = (const physx::PxMat44 *)(&UTM);
+	Result = *MatPtr;
+
+	return Result;
+}
+
+FORCEINLINE_DEBUGGABLE PxTransform U2PTransform(const FTransform& UTransform)
+{
+	PxQuat PQuat = U2PQuat(UTransform.GetRotation());
+	PxVec3 PPos = U2PVector(UTransform.GetLocation());
+
+	PxTransform Result(PPos, PQuat);
+
+	return Result;
+}
+
+///////////////////// PhysX to Unreal conversion /////////////////////
+
+inline FMatrix P2UMatrix(const PxMat44& PMat)
+{
+	FMatrix Result;
+	// we have to use Memcpy instead of typecasting, because PxMat44's are not aligned like FMatrix is
+	FMemory::Memcpy(&Result, &PMat, sizeof(PMat));
+	return Result;
+}
+
+inline FMatrix PTransform2UMatrix(const PxTransform& PTM)
+{
+	FQuat UQuat = P2UQuat(PTM.q);
+	FVector UPos = P2UVector(PTM.p);
+
+	FMatrix Result = FQuatRotationTranslationMatrix(UQuat, UPos);
+
+	return Result;
+}
+
+inline FTransform P2UTransform(const PxTransform& PTM)
+{
+	FQuat UQuat = P2UQuat(PTM.q);
+	FVector UPos = P2UVector(PTM.p);
+
+	FTransform Result = FTransform(UQuat, UPos);
+
+	return Result;
+}

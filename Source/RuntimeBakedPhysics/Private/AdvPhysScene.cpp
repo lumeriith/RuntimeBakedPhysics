@@ -29,8 +29,8 @@ void AAdvPhysScene::AddPhysObject(UStaticMeshComponent* Component)
 
 void AAdvPhysScene::ClearPhysObjects()
 {
-	RecordData = {};
-	Status = {};
+	RecordData = FPhysRecordData();
+	Status = FStatus();
 	PhysObjects.Empty();
 	Simulator.ClearScene();
 }

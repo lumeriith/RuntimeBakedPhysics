@@ -8,7 +8,12 @@
 #include "ThirdParty/PhysX3/PhysX_3.4/Include/PxPhysics.h"
 #include "ThirdParty/PhysX3/PhysX_3.4/Include/PxPhysicsAPI.h"
 
-using namespace physx;
+using namespace physx; 
+
+struct PhysCompoundShape
+{
+	std::vector<PxShape*> Shapes;
+};
 
 class RUNTIMEBAKEDPHYSICS_API PhysSimulator
 {
@@ -21,7 +26,7 @@ public:
 
 	// Scene-Related
 	void ClearScene();
-	void AddToScene(UStaticMeshComponent* Comp, bool );
+	void AddToScene(UStaticMeshComponent* Comp, bool bUseSimpleGeometry = false);
 
 	void StartRecord(FPhysRecordData* Destination, float RecordInterval, int FrameCount, float GravityZ);
 	void StopRecord();
@@ -30,7 +35,12 @@ public:
 	bool IsRecording() const;
 protected:
 	void RecordInternal();
+	
 	void CreateSceneInternal();
+
+	void GetShapeInternal(const UStaticMeshComponent* Comp, bool bUseSimpleGeometry, PhysCompoundShape& OutShape);
+	PxGeometry GetSimpleGeometry(const UStaticMeshComponent* Comp) const;
+	PxConvexMesh* GetConvexMeshInternal(UStaticMesh* Mesh, int ConvexElemIndex);
 
 	FPhysRecordData* RecordData;
 
@@ -47,14 +57,15 @@ protected:
 
 	PxPvd*                  Pvd;
 
+	PxCooking*				Cooking;
+
 	PxReal stackZ = 10.0f;
 	
 	bool bIsInitialized;
 	bool bIsRecording;
 	bool bWantsToStop;
 	std::thread RecordThread;
-
-	std::unordered_map<uint64, PxShape*> Shapes;
-	std::vector<PxMaterial*> Materials;
+	
+	std::unordered_map<uint64, PxConvexMesh*> ConvexMeshes;
 	std::vector<PxRigidDynamic*> ObservedBodies;
 };

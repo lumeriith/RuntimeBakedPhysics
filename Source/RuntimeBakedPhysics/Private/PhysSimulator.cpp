@@ -3,7 +3,6 @@
 #include "AdvPhysScene.h"
 #include "PtouConversions.h"
 
-#define PHYSICS_INTERFACE_PHYSX true
 #include "PhysXPublicCore.h"
 #include "PhysicalMaterials/PhysicalMaterial.h"
 
@@ -37,35 +36,14 @@ void PhysSimulator::Initialize()
 	Foundation = PxCreateFoundation(PX_FOUNDATION_VERSION, Allocator, ErrorCallback);
 
 	Pvd = PxCreatePvd(*Foundation);
-	PxPvdTransport* transport = PxDefaultPvdSocketTransportCreate("localhost", 5425, 10);
-	Pvd->connect(*transport,PxPvdInstrumentationFlag::eALL);
+	PxPvdTransport* Transport = PxDefaultPvdSocketTransportCreate("localhost", 5425, 10);
+	Pvd->connect(*Transport,PxPvdInstrumentationFlag::eALL);
 
 	Physics = PxCreatePhysics(PX_PHYSICS_VERSION, *Foundation, PxTolerancesScale(), true, Pvd);
-
-	CreateSceneInternal();
 	
-	if (false)
-	{
-		for(PxU32 i=0;i<5;i++)
-		{
-			const PxTransform& t =PxTransform(PxVec3(0,0,stackZ-=10.0f));
-			PxU32 size = 10;
-			PxReal halfExtent = 2.0f;
-			PxShape* shape = Physics->createShape(PxBoxGeometry(halfExtent, halfExtent, halfExtent), *TestMaterial);
-			for(PxU32 j=0; j<size;j++)
-			{
-				for(PxU32 k=0;k<size-i;k++)
-				{
-					PxTransform localTm(PxVec3(PxReal(k*2) - PxReal(size-j), PxReal(j*2+1), 0) * halfExtent);
-					PxRigidDynamic* body = Physics->createRigidDynamic(t.transform(localTm));
-					body->attachShape(*shape);
-					PxRigidBodyExt::updateMassAndInertia(*body, 10.0f);
-					Scene->addActor(*body);
-				}
-			}
-			shape->release();
-		}
-	}
+	CreateSceneInternal();
+
+	Cooking = PxCreateCooking(PX_PHYSICS_VERSION, *Foundation, PxCookingParams(Physics->getTolerancesScale()));
 	
 	bIsInitialized = true;
 }
@@ -89,7 +67,7 @@ void PhysSimulator::Cleanup()
 	PxPvdTransport* transport = Pvd->getTransport();
 	Pvd->release();
 	transport->release();
-	
+	Cooking->release();
 	Foundation->release();
 	
 	bIsInitialized = false;
@@ -110,20 +88,18 @@ void PhysSimulator::ClearScene()
 		Scene->release();
 	}
 	
-	for (auto& Shape : Shapes)
-		Shape.second->release();
-	Shapes.clear();
-
-	for (auto& Material : Materials)
-		Material->release();
-	Materials.clear();
+	for (auto& Mesh : ConvexMeshes)
+	{
+		Mesh.second->release();
+	}
+	ConvexMeshes.clear();
 
 	ObservedBodies.clear();
 	
 	CreateSceneInternal();
 }
 
-void PhysSimulator::AddToScene(UStaticMeshComponent* Comp)
+void PhysSimulator::AddToScene(UStaticMeshComponent* Comp, bool bUseSimpleGeometry)
 {
 	if (!bIsInitialized)
 	{
@@ -132,66 +108,32 @@ void PhysSimulator::AddToScene(UStaticMeshComponent* Comp)
 			);
 		return;
 	}
-
-	const auto UPhysMat = Comp->GetMaterial(0)->GetPhysicalMaterial();
 	
-	const uint32 PhysMatId = UPhysMat->GetUniqueID();
-	const uint32 MeshId = Comp->GetStaticMesh()->GetUniqueID();
-	const uint64 FinalId =  PhysMatId | (MeshId < 32);
-	
-	if (Shapes.count(FinalId) == 0)
-	{
-		const auto NewMaterial = Physics->createMaterial(
-			UPhysMat->StaticFriction,
-			UPhysMat->Friction,
-			UPhysMat->Restitution
-		);
-		Materials.push_back(NewMaterial);
-
-		// const auto& Geom = Comp->GetStaticMesh()->GetBodySetup()->AggGeom;
-
-		const auto UColShape = Comp->GetCollisionShape();
-		
-		switch (UColShape.ShapeType)
-		{
-		case ECollisionShape::Line:
-			FMessageLog("PhysSimulator").Error(
-				FText::FromString("Unsupported Geometry Type: Line")
-			);
-			break;
-		case ECollisionShape::Box:
-			Shapes[FinalId] = Physics->createShape(
-				PxBoxGeometry(U2PVector(UColShape.GetBox())),
-				*NewMaterial);
-			break;
-		case ECollisionShape::Sphere:
-			Shapes[FinalId] = Physics->createShape(
-				PxSphereGeometry(UColShape.GetSphereRadius()),
-				*NewMaterial);
-			break;
-		case ECollisionShape::Capsule:
-			Shapes[FinalId] = Physics->createShape(
-				PxCapsuleGeometry(UColShape.GetCapsuleRadius(), UColShape.GetCapsuleHalfHeight()),
-				*NewMaterial);
-			break;
-		default: ;
-		}
-	}
-	
-	const auto& PShape = Shapes[FinalId];
+	PhysCompoundShape CompoundShape;
+	GetShapeInternal(Comp, bUseSimpleGeometry, CompoundShape);
 
 	PxVec3 PLoc = U2PVector(Comp->GetComponentLocation());
 	PxQuat PQuat = U2PQuat(Comp->GetComponentRotation().Quaternion());
 	
 	const PxTransform& PTransform = PxTransform(PLoc, PQuat);
-	PxRigidDynamic* body = Physics->createRigidDynamic(PTransform);
-	body->attachShape(*PShape);
-	PxRigidBodyExt::updateMassAndInertia(*body, 10.0f);
-	Scene->addActor(*body);
-	ObservedBodies.push_back(body);
+	PxRigidDynamic* PBody = Physics->createRigidDynamic(PTransform);
+
+	for (auto& PShape : CompoundShape.Shapes)
+	{
+		PBody->attachShape(*PShape);
+	}
+	
+	PxRigidBodyExt::updateMassAndInertia(*PBody, Comp->GetMaterial(0)->GetPhysicalMaterial()->Density);
+	Scene->addActor(*PBody);
+	ObservedBodies.push_back(PBody);
 }
 
-void PhysSimulator::StartRecord(FPhysRecordData* Destination, float RecordInterval, int FrameCount, float GravityZ)
+void PhysSimulator::StartRecord(
+	FPhysRecordData* Destination,
+	float RecordInterval,
+	int FrameCount,
+	float GravityZ
+	)
 {
 	if (bIsRecording || !bIsInitialized)
 	{
@@ -282,4 +224,138 @@ void PhysSimulator::CreateSceneInternal()
 	
 	PxRigidStatic* groundPlane = PxCreatePlane(*Physics, PxPlane(0,0,1,0), *TestMaterial);
 	Scene->addActor(*groundPlane);
+}
+
+void PhysSimulator::GetShapeInternal(const UStaticMeshComponent* Comp, bool bUseSimpleGeometry, PhysCompoundShape& OutShape)
+{
+	const auto& UPhysMat = Comp->GetMaterial(0)->GetPhysicalMaterial();
+	const auto PMaterial = Physics->createMaterial(
+			UPhysMat->StaticFriction,
+			UPhysMat->Friction,
+			UPhysMat->Restitution
+		);
+	
+	if (bUseSimpleGeometry)
+	{
+		const PxGeometry PGeom = GetSimpleGeometry(Comp);
+		OutShape = PhysCompoundShape();
+		OutShape.Shapes.push_back(Physics->createShape(PGeom, *PMaterial));
+		return;
+	}
+	
+	const auto UScale = Comp->GetComponentScale();
+	const auto PScale = U2PVector(UScale);
+	const auto& AggGeom = Comp->GetStaticMesh()->GetBodySetup()->AggGeom;
+		
+	OutShape = PhysCompoundShape();
+	OutShape.Shapes.reserve(
+		AggGeom.BoxElems.Num() +
+		AggGeom.ConvexElems.Num() +
+		AggGeom.SphereElems.Num() +
+		AggGeom.SphylElems.Num() +
+		AggGeom.TaperedCapsuleElems.Num());
+		
+	for (auto& Box : AggGeom.BoxElems)
+	{
+		// TODO proper scaling to cubes?
+		PxBoxGeometry PGeom(Box.X * UScale.X, Box.Y * UScale.Y, Box.Z * UScale.Z);
+		PxTransform PTransform = U2PTransform(Box.GetTransform());
+		const auto NewShape = Physics->createShape(PGeom, *PMaterial);
+		NewShape->setLocalPose(PTransform);
+		OutShape.Shapes.push_back(NewShape);
+	}
+
+	for (int i = 0; i < AggGeom.ConvexElems.Num(); i++)
+	{
+		const auto PMesh = GetConvexMeshInternal(Comp->GetStaticMesh(), i);
+		PxConvexMeshGeometry PGeom(PMesh, PxMeshScale(PScale));
+		PxTransform PTransform = U2PTransform(AggGeom.ConvexElems[i].GetTransform());
+		const auto NewShape = Physics->createShape(PGeom, *PMaterial);
+		NewShape->setLocalPose(PTransform);
+		OutShape.Shapes.push_back(NewShape);
+	}
+
+	for (auto& Sphere : AggGeom.SphereElems)
+	{
+		PxSphereGeometry PGeom(Sphere.Radius * UScale.X);
+		PxTransform PTransform = U2PTransform(Sphere.GetTransform());
+		const auto NewShape = Physics->createShape(PGeom, *PMaterial);
+		NewShape->setLocalPose(PTransform);
+		OutShape.Shapes.push_back(NewShape);
+	}
+
+	for (auto& Capsule : AggGeom.SphylElems)
+	{
+		// TODO scale capsules?
+		PxCapsuleGeometry PGeom(Capsule.Radius, Capsule.Length / 2.0f);
+		PxTransform PTransform = U2PTransform(Capsule.GetTransform());
+		const auto NewShape = Physics->createShape(PGeom, *PMaterial);
+		NewShape->setLocalPose(PTransform);
+		OutShape.Shapes.push_back(NewShape);
+	}
+
+	for (auto& Cylinder : AggGeom.TaperedCapsuleElems)
+	{
+		// TODO
+	}
+}
+
+PxGeometry PhysSimulator::GetSimpleGeometry(const UStaticMeshComponent* Comp) const
+{
+	// Use ColShape to generate simple geometry regardless of Collision Body used by component
+	const auto UColShape = Comp->GetCollisionShape();
+		
+	switch (UColShape.ShapeType)
+	{
+	case ECollisionShape::Line:
+		// Unsupported TODO?
+		break;
+	case ECollisionShape::Box:
+		return PxGeometry(PxBoxGeometry(U2PVector(UColShape.GetBox())));
+	case ECollisionShape::Sphere:
+		return PxGeometry(PxSphereGeometry(UColShape.GetSphereRadius()));
+	case ECollisionShape::Capsule:
+		return PxGeometry(
+			PxCapsuleGeometry(UColShape.GetCapsuleRadius(), UColShape.GetCapsuleHalfHeight())
+			);
+	default: ;
+	}
+	FMessageLog("PhysSimulator").Error(
+			FText::FromString("Unsupported Geometry Type")
+		);
+	return PxGeometry(PxBoxGeometry());
+}
+
+PxConvexMesh* PhysSimulator::GetConvexMeshInternal(UStaticMesh* Mesh, int ConvexElemIndex)
+{
+	const uint64 Id = Mesh->GetUniqueID() | (static_cast<uint64>(ConvexElemIndex) << 32);
+
+	if (ConvexMeshes.count(Id))
+		return ConvexMeshes[Id];
+	
+	const auto& Convex = Mesh->GetBodySetup()->AggGeom.ConvexElems[ConvexElemIndex];
+	
+	std::vector<PxVec3> PVerts;
+	PVerts.resize(Convex.VertexData.Num());
+	for (int i = 0; i < Convex.VertexData.Num(); i++)
+	{
+		PVerts[i] = U2PVector(Convex.VertexData[i]);
+	}
+			
+	PxConvexMeshDesc convexDesc;
+	convexDesc.points.count     = Convex.VertexData.Num();
+	convexDesc.points.stride    = sizeof(PxVec3);
+	convexDesc.points.data      = PVerts.data();
+	convexDesc.flags            = PxConvexFlag::eCOMPUTE_CONVEX;
+	convexDesc.vertexLimit		= 20;
+			
+	// mesh should be validated before cooking without the mesh cleaning
+	// Remove on release build?
+	bool res = Cooking->validateConvexMesh(convexDesc);
+	PX_ASSERT(res);
+
+	const auto ConvexMesh = Cooking->createConvexMesh(convexDesc,
+		Physics->getPhysicsInsertionCallback());
+	ConvexMeshes[Id] = ConvexMesh;
+	return ConvexMesh;
 }
