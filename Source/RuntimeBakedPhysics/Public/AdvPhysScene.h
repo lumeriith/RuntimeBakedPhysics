@@ -32,7 +32,10 @@ public:
 	AAdvPhysScene();
 	
 	UFUNCTION(BlueprintCallable)
-		void AddPhysObject(UStaticMeshComponent* Component);
+		void AddSimulatedObject(UStaticMeshComponent* Component);
+	UFUNCTION(BlueprintCallable)
+		void AddStaticObject(UStaticMeshComponent* Component);
+	
 	UFUNCTION(BlueprintCallable)
 		void ClearPhysObjects();
 	

@@ -26,7 +26,9 @@ public:
 
 	// Scene-Related
 	void ClearScene();
-	void AddToScene(UStaticMeshComponent* Comp, bool bUseSimpleGeometry = false);
+	
+	void AddStaticBody(UStaticMeshComponent* Comp, bool bUseSimpleGeometry = false);
+	void AddDynamicBody(UStaticMeshComponent* Comp, bool bUseSimpleGeometry = false);
 
 	void StartRecord(FPhysRecordData* Destination, float RecordInterval, int FrameCount, float GravityZ);
 	void StopRecord();
@@ -52,8 +54,6 @@ protected:
 
 	PxDefaultCpuDispatcher*	Dispatcher;
 	PxScene*				Scene;
-
-	PxMaterial*				TestMaterial;
 
 	PxPvd*                  Pvd;
 

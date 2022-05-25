@@ -8,8 +8,7 @@
 
 PhysSimulator::PhysSimulator(): RecordData(nullptr), Foundation(nullptr), Physics(nullptr), Dispatcher(nullptr),
                                 Scene(nullptr),
-                                TestMaterial(nullptr),
-                                Pvd(nullptr),
+                                Pvd(nullptr), Cooking(nullptr),
                                 bIsInitialized(false),
                                 bIsRecording(false),
                                 bWantsToStop(false)
@@ -99,12 +98,12 @@ void PhysSimulator::ClearScene()
 	CreateSceneInternal();
 }
 
-void PhysSimulator::AddToScene(UStaticMeshComponent* Comp, bool bUseSimpleGeometry)
+void PhysSimulator::AddStaticBody(UStaticMeshComponent* Comp, bool bUseSimpleGeometry)
 {
 	if (!bIsInitialized)
 	{
 		FMessageLog("PhysSimulator").Error(
-			FText::FromString("AddToScene requires PhysSimulator to be initialized")
+			FText::FromString("AddStaticBody requires PhysSimulator to be initialized")
 			);
 		return;
 	}
@@ -112,13 +111,40 @@ void PhysSimulator::AddToScene(UStaticMeshComponent* Comp, bool bUseSimpleGeomet
 	PhysCompoundShape CompoundShape;
 	GetShapeInternal(Comp, bUseSimpleGeometry, CompoundShape);
 
-	PxVec3 PLoc = U2PVector(Comp->GetComponentLocation());
-	PxQuat PQuat = U2PQuat(Comp->GetComponentRotation().Quaternion());
+	const PxVec3 PLoc = U2PVector(Comp->GetComponentLocation());
+	const PxQuat PQuat = U2PQuat(Comp->GetComponentRotation().Quaternion());
+	
+	const PxTransform& PTransform = PxTransform(PLoc, PQuat);
+	const auto PBody = Physics->createRigidStatic(PTransform);
+
+	for (const auto& PShape : CompoundShape.Shapes)
+	{
+		PBody->attachShape(*PShape);
+	}
+	
+	Scene->addActor(*PBody);
+}
+
+void PhysSimulator::AddDynamicBody(UStaticMeshComponent* Comp, bool bUseSimpleGeometry)
+{
+	if (!bIsInitialized)
+	{
+		FMessageLog("PhysSimulator").Error(
+			FText::FromString("AddDynamicBody requires PhysSimulator to be initialized")
+			);
+		return;
+	}
+	
+	PhysCompoundShape CompoundShape;
+	GetShapeInternal(Comp, bUseSimpleGeometry, CompoundShape);
+
+	const PxVec3 PLoc = U2PVector(Comp->GetComponentLocation());
+	const PxQuat PQuat = U2PQuat(Comp->GetComponentRotation().Quaternion());
 	
 	const PxTransform& PTransform = PxTransform(PLoc, PQuat);
 	PxRigidDynamic* PBody = Physics->createRigidDynamic(PTransform);
 
-	for (auto& PShape : CompoundShape.Shapes)
+	for (const auto& PShape : CompoundShape.Shapes)
 	{
 		PBody->attachShape(*PShape);
 	}
@@ -220,10 +246,6 @@ void PhysSimulator::CreateSceneInternal()
 		PvdClient->setScenePvdFlag(PxPvdSceneFlag::eTRANSMIT_CONTACTS, true);
 		PvdClient->setScenePvdFlag(PxPvdSceneFlag::eTRANSMIT_SCENEQUERIES, true);
 	}
-	TestMaterial = Physics->createMaterial(0.5f, 0.5f, 0.6f);
-	
-	PxRigidStatic* groundPlane = PxCreatePlane(*Physics, PxPlane(0,0,1,0), *TestMaterial);
-	Scene->addActor(*groundPlane);
 }
 
 void PhysSimulator::GetShapeInternal(const UStaticMeshComponent* Comp, bool bUseSimpleGeometry, PhysCompoundShape& OutShape)

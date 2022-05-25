@@ -11,20 +11,39 @@ AAdvPhysScene::AAdvPhysScene()
 	PrimaryActorTick.bCanEverTick = true;
 }
 
-void AAdvPhysScene::AddPhysObject(UStaticMeshComponent* Component)
+void AAdvPhysScene::AddSimulatedObject(UStaticMeshComponent* Component)
 {
-	RecordData = {};
-	Status = {};
+	if (!Component)
+	{
+		FMessageLog("AdvPhysScene").Error(FText::FromString("AddSimulatedObject invalid argument"));
+		return;
+	}
+	
+	RecordData = FPhysRecordData();
+	Status = FStatus();
 	
 	FPhysObject NewObj;
 	NewObj.Comp = Component;
 	NewObj.InitLoc = Component->GetComponentLocation();
 	NewObj.InitRot = Component->GetComponentRotation();
-	NewObj.IsStatic = !Component->IsSimulatingPhysics();
-	Component->SetSimulatePhysics(false);
+	NewObj.IsStatic = false;
 	PhysObjects.Add(NewObj);
 	
-	Simulator.AddToScene(Component);
+	Simulator.AddDynamicBody(Component);
+}
+
+void AAdvPhysScene::AddStaticObject(UStaticMeshComponent* Component)
+{
+	if (!Component)
+	{
+		FMessageLog("AdvPhysScene").Error(FText::FromString("AddStaticObject invalid argument"));
+		return;
+	}
+	
+	RecordData = FPhysRecordData();
+	Status = FStatus();
+	
+	Simulator.AddStaticBody(Component);
 }
 
 void AAdvPhysScene::ClearPhysObjects()
