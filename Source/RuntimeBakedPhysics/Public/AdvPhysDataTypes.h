@@ -2,10 +2,26 @@
 
 struct FPhysObject
 {
+	explicit FPhysObject(UStaticMeshComponent* Comp) :
+		Comp(Comp),
+		Location(Comp->GetComponentLocation()),
+		Rotation(Comp->GetComponentRotation())
+	{ }
+	
 	UStaticMeshComponent* Comp;
-	FVector InitLoc;
-	FRotator InitRot;
-	bool IsStatic;
+	FVector Location;
+	FRotator Rotation;
+};
+
+enum EPhysEventType : uint8
+{
+	Explosive
+};
+
+
+struct FPhysEvent
+{
+	
 };
 
 struct FPhysObjLocRot

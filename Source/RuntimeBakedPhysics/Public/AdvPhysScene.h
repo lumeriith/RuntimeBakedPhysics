@@ -19,8 +19,8 @@ enum EAction : uint8
 struct FStatus
 {
 	EAction Current;
-	float StartTime;
-	int Cursor;
+	float PlayStartTime;
+	float PlayLastFrameTime;
 };
 
 UCLASS()
@@ -32,7 +32,7 @@ public:
 	AAdvPhysScene();
 	
 	UFUNCTION(BlueprintCallable)
-		void AddSimulatedObject(UStaticMeshComponent* Component);
+		void AddDynamicObject(UStaticMeshComponent* Component);
 	UFUNCTION(BlueprintCallable)
 		void AddStaticObject(UStaticMeshComponent* Component);
 	
@@ -53,12 +53,14 @@ public:
 		TSubclassOf<AActor> TestActor;
 	
 	virtual void Tick(float DeltaTime) override;
+
+	UPROPERTY(EditAnywhere)
+	float PlayFramesPerSecond = -1;
 protected:
 	virtual void BeginPlay() override;
 
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
-	inline bool IsCursorAtEnd() const;
 	inline float GetDuration() const;
 
 	void DoRecordTick();
@@ -68,8 +70,14 @@ protected:
 
 	void ResetPhysObjectsPosition();
 
+	void CopyObjectsToSimulator();
+
 	PhysSimulator Simulator;
 	FStatus Status;
-	TArray<FPhysObject> PhysObjects;
+	
+	TArray<FPhysObject> DynamicUEObjects;
+	TArray<FPhysObject> StaticUEObjects;
+	
 	FPhysRecordData RecordData;
+	double RecordStartTime;
 };

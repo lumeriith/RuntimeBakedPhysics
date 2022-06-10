@@ -11,25 +11,18 @@ AAdvPhysScene::AAdvPhysScene()
 	PrimaryActorTick.bCanEverTick = true;
 }
 
-void AAdvPhysScene::AddSimulatedObject(UStaticMeshComponent* Component)
+void AAdvPhysScene::AddDynamicObject(UStaticMeshComponent* Component)
 {
 	if (!Component)
 	{
-		FMessageLog("AdvPhysScene").Error(FText::FromString("AddSimulatedObject invalid argument"));
+		FMessageLog("AdvPhysScene").Error(FText::FromString("AddDynamicObject invalid argument"));
 		return;
 	}
 	
 	RecordData = FPhysRecordData();
 	Status = FStatus();
 	
-	FPhysObject NewObj;
-	NewObj.Comp = Component;
-	NewObj.InitLoc = Component->GetComponentLocation();
-	NewObj.InitRot = Component->GetComponentRotation();
-	NewObj.IsStatic = false;
-	PhysObjects.Add(NewObj);
-	
-	Simulator.AddDynamicBody(Component);
+	DynamicUEObjects.Add(FPhysObject(Component));
 }
 
 void AAdvPhysScene::AddStaticObject(UStaticMeshComponent* Component)
@@ -43,23 +36,47 @@ void AAdvPhysScene::AddStaticObject(UStaticMeshComponent* Component)
 	RecordData = FPhysRecordData();
 	Status = FStatus();
 	
-	Simulator.AddStaticBody(Component);
+	StaticUEObjects.Add(FPhysObject(Component));
 }
 
 void AAdvPhysScene::ClearPhysObjects()
 {
 	RecordData = FPhysRecordData();
 	Status = FStatus();
-	PhysObjects.Empty();
+	DynamicUEObjects.Empty();
+	StaticUEObjects.Empty();
 	Simulator.ClearScene();
 }
 
 void AAdvPhysScene::ResetPhysObjectsPosition()
 {
-	for (const auto& Obj : PhysObjects)
+	for (const auto& Obj : DynamicUEObjects)
 	{
-		Obj.Comp->SetWorldLocationAndRotation(Obj.InitLoc, Obj.InitRot);
+		Obj.Comp->SetWorldLocationAndRotation(Obj.Location, Obj.Rotation);
 	}
+}
+
+void AAdvPhysScene::CopyObjectsToSimulator()
+{
+	const double StartSeconds = FPlatformTime::Seconds();
+	for (const auto& Obj : DynamicUEObjects)
+	{
+		Simulator.AddDynamicBody(Obj.Comp);
+	}
+
+	for (const auto& Obj : StaticUEObjects)
+	{
+		Simulator.AddStaticBody(Obj.Comp);
+	}
+	const double Now = FPlatformTime::Seconds();
+
+	FMessageLog("AdvPhysScene").Info(
+	FText::Format(
+		FText::FromString("CopyObjectsToSimulator took {0}ms, {1} dynamic objects, {2} static objects."),
+		(Now - StartSeconds) * 1000,
+		DynamicUEObjects.Num(),
+		StaticUEObjects.Num()
+	));
 }
 
 void AAdvPhysScene::Record(const float Interval, const int FrameCount)
@@ -67,28 +84,31 @@ void AAdvPhysScene::Record(const float Interval, const int FrameCount)
 	FMessageLog("AdvPhysScene").Info(
 		FText::Format(
 			FText::FromString("Start Recording, {0} objects, {1} frames, {2}s each."),
-			PhysObjects.Num(),
+			DynamicUEObjects.Num(),
 			FrameCount,
 			Interval
 		)
 	);
+	
 	Cancel();
 	Status.Current = Recording;
 	RecordData = {};
+	CopyObjectsToSimulator();
 	Simulator.StartRecord(&RecordData, Interval, FrameCount, GetWorld()->GetGravityZ());
+	RecordStartTime = FPlatformTime::Seconds();
 }
 
 void AAdvPhysScene::Play()
 {
 	if (RecordData.FrameCount <= 0)
 	{
-		FMessageLog("AdvPhysScene").Error(FText::FromString("Tried to play with no recorded data!"));
+		FMessageLog("AdvPhysScene").Error(FText::FromString("Tried to play with no recorded data."));
 		return;
 	}
 	FMessageLog("AdvPhysScene").Info(
 		FText::Format(
 			FText::FromString("Start Playing, {0} objects, {1} frames, {2}s each."),
-			PhysObjects.Num(),
+			DynamicUEObjects.Num(),
 			RecordData.FrameCount,
 			RecordData.FrameInterval
 		)
@@ -96,11 +116,11 @@ void AAdvPhysScene::Play()
 
 	Cancel();
 	Status.Current = Playing;
-	Status.StartTime = GetWorld()->GetTimeSeconds();
+	Status.PlayStartTime = GetWorld()->GetTimeSeconds();
 
-	for (const auto& OBJ : PhysObjects)
+	for (const auto& Obj : DynamicUEObjects)
 	{
-		OBJ.Comp->SetSimulatePhysics(false);
+		Obj.Comp->SetSimulatePhysics(false);
 	}
 	PlayFrame(0.0f);
 }
@@ -119,11 +139,6 @@ void AAdvPhysScene::Cancel()
 	Status = {};
 }
 
-bool AAdvPhysScene::IsCursorAtEnd() const
-{
-	return Status.Cursor >= RecordData.FrameCount;
-}
-
 float AAdvPhysScene::GetDuration() const
 {
 	return RecordData.FrameCount * RecordData.FrameInterval;
@@ -140,7 +155,7 @@ void AAdvPhysScene::PlayFrame(float Time)
 	if (EndFrame >= RecordData.FrameCount)
 		EndFrame = RecordData.FrameCount - 1;
 
-	const size_t NumOfObjects = PhysObjects.Num();
+	const size_t NumOfObjects = DynamicUEObjects.Num();
 
 	// Set location/rotation as-is
 	if (!bEnableInterpolation || StartFrame == EndFrame)
@@ -149,7 +164,7 @@ void AAdvPhysScene::PlayFrame(float Time)
 		{
 			const FPhysObjLocRot& StartEntry = RecordData.ObjLocRot[StartFrame * NumOfObjects + ObjIndex];
 
-			PhysObjects[ObjIndex].Comp->SetWorldLocationAndRotationNoPhysics(StartEntry.Location, StartEntry.Rotation);
+			DynamicUEObjects[ObjIndex].Comp->SetWorldLocationAndRotationNoPhysics(StartEntry.Location, StartEntry.Rotation);
 		}
 		return;
 	}
@@ -164,7 +179,7 @@ void AAdvPhysScene::PlayFrame(float Time)
 		const FVector Loc = StartEntry.Location * (1.0f - Value) + EndEntry.Location * Value;
 		const FRotator Rot = FMath::Lerp(StartEntry.Rotation, EndEntry.Rotation, Value);
 
-		PhysObjects[ObjIndex].Comp->SetWorldLocationAndRotationNoPhysics(Loc, Rot);
+		DynamicUEObjects[ObjIndex].Comp->SetWorldLocationAndRotationNoPhysics(Loc, Rot);
 	}
 }
 
@@ -202,18 +217,28 @@ void AAdvPhysScene::DoRecordTick()
 {
 	if (RecordData.Finished)
 	{
-		FMessageLog("AdvPhysScene").Info(FText::FromString("Recording finished."));
+		const double Now = FPlatformTime::Seconds();
+		FMessageLog("AdvPhysScene").Info(FText::Format(
+			FText::FromString("Recording finished, took {0} seconds."),
+			Now - RecordStartTime
+			));
 		Status = {};
+		Simulator.ClearScene();
 	}
 }
 
 void AAdvPhysScene::DoPlayTick()
 {
-	const float currentTime = GetWorld()->GetTimeSeconds() - Status.StartTime;
-
-	PlayFrame(currentTime);
-
-	if (currentTime > GetDuration())
+	const float Now = GetWorld()->GetTimeSeconds();
+	if (PlayFramesPerSecond > 0.01f && Now - Status.PlayLastFrameTime < 1.0f / PlayFramesPerSecond)
+	{
+		return; // Skip frame
+	}
+	
+	const float CurrentTime = Now - Status.PlayStartTime;
+	PlayFrame(CurrentTime);
+	Status.PlayLastFrameTime = Now;
+	if (CurrentTime > GetDuration())
 	{
 		FMessageLog("AdvPhysScene").Info(FText::FromString("Playing finished."));
 		Status = {};

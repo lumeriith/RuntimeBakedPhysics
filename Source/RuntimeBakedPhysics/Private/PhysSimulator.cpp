@@ -148,8 +148,10 @@ void PhysSimulator::AddDynamicBody(UStaticMeshComponent* Comp, bool bUseSimpleGe
 	{
 		PBody->attachShape(*PShape);
 	}
-	
-	PxRigidBodyExt::updateMassAndInertia(*PBody, Comp->GetMaterial(0)->GetPhysicalMaterial()->Density);
+
+	Comp->SetSimulatePhysics(true);
+	PxRigidBodyExt::setMassAndUpdateInertia(*PBody, Comp->GetMass());
+	Comp->SetSimulatePhysics(false);
 	Scene->addActor(*PBody);
 	ObservedBodies.push_back(PBody);
 }
@@ -216,6 +218,16 @@ void PhysSimulator::RecordInternal()
 			bIsRecording = false;
 			return;
 		}
+
+		if (i == 100)
+		{
+			for (const auto& Body : ObservedBodies)
+			{
+				PxVec3 Force(50 * 1000, 0, 0);
+				Body->addForce(Force, PxForceMode::eIMPULSE);
+			}
+		}
+		
 		Scene->simulate(RecordData->FrameInterval);
 		Scene->fetchResults(true);
 		for (int j = 0; j < ObservedBodies.size(); j++)
