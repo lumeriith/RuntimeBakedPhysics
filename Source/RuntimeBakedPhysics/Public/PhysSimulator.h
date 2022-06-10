@@ -24,6 +24,11 @@ public:
 	void Initialize();
 	void Cleanup();
 
+	// Events
+	void ReserveEvents(int FrameCount);
+	void AddEvents(TArray<std::tuple<int, std::any>>& Pairs);
+	void FreeEvents();
+
 	// Scene-Related
 	void ClearScene();
 	
@@ -37,6 +42,8 @@ public:
 	bool IsRecording() const;
 protected:
 	void RecordInternal();
+	void HandleEventsInternal(int Frame);
+	void HandleExplosionEventInternal(FPhysEvent_Explosion&& Explosion);
 	
 	void CreateSceneInternal();
 
@@ -68,4 +75,6 @@ protected:
 	
 	std::unordered_map<uint64, PxConvexMesh*> ConvexMeshes;
 	std::vector<PxRigidDynamic*> ObservedBodies;
+
+	std::vector<std::shared_ptr<FPhysEventNode>> Events;
 };

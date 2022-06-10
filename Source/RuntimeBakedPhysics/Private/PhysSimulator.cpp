@@ -72,6 +72,34 @@ void PhysSimulator::Cleanup()
 	bIsInitialized = false;
 }
 
+void PhysSimulator::ReserveEvents(int FrameCount)
+{
+	Events.resize(FrameCount);
+}
+
+void PhysSimulator::AddEvents(TArray<std::tuple<int, std::any>>& Pairs)
+{
+	for (const auto& P : Pairs)
+	{
+		const int FrameCount = std::get<0>(P);
+		auto NewNode = std::make_unique<FPhysEventNode>();
+		NewNode->Event = std::get<1>(P);
+		if (!Events[FrameCount])
+		{
+			Events[FrameCount] = std::move(NewNode);
+			continue;
+		}
+		NewNode->Next = std::move(Events[FrameCount]);
+		Events[FrameCount] = std::move(NewNode);
+	}
+}
+
+void PhysSimulator::FreeEvents()
+{
+	Events.clear();
+	Events.shrink_to_fit();
+}
+
 void PhysSimulator::ClearScene()
 {
 	if (!bIsInitialized)
@@ -87,7 +115,7 @@ void PhysSimulator::ClearScene()
 		Scene->release();
 	}
 	
-	for (auto& Mesh : ConvexMeshes)
+	for (const auto& Mesh : ConvexMeshes)
 	{
 		Mesh.second->release();
 	}
@@ -219,14 +247,7 @@ void PhysSimulator::RecordInternal()
 			return;
 		}
 
-		if (i == 100)
-		{
-			for (const auto& Body : ObservedBodies)
-			{
-				PxVec3 Force(50 * 1000, 0, 0);
-				Body->addForce(Force, PxForceMode::eIMPULSE);
-			}
-		}
+		HandleEventsInternal(RecordData->FrameCount);
 		
 		Scene->simulate(RecordData->FrameInterval);
 		Scene->fetchResults(true);
@@ -241,6 +262,43 @@ void PhysSimulator::RecordInternal()
 	}
 	RecordData->Finished = true;
 	bIsRecording = false;
+}
+
+void PhysSimulator::HandleEventsInternal(int Frame)
+{
+	auto& EventCursor = Events[Frame];
+	while (EventCursor)
+	{
+		if (EventCursor->Event.type() == typeid(FPhysEvent_Explosion))
+			HandleExplosionEventInternal(std::any_cast<FPhysEvent_Explosion>(EventCursor->Event));
+		
+		EventCursor = EventCursor->Next;
+	}
+}
+
+void PhysSimulator::HandleExplosionEventInternal(FPhysEvent_Explosion&& Explosion)
+{
+	const auto ExplosionPos = U2PVector(Explosion.Position);
+
+	// Fall-Offs
+	const float MaxSqr = Explosion.FallOffMaxDistance * Explosion.FallOffMaxDistance;
+	const float MinSqr = Explosion.FallOffMinDistance * Explosion.FallOffMinDistance;
+	const float MinMaxDiff = Explosion.FallOffMaxDistance - Explosion.FallOffMinDistance;
+			
+	for (const auto& Body : ObservedBodies)
+	{
+		PxVec3 Dir = Body->getGlobalPose().p - ExplosionPos;
+		float SqrDist = Dir.magnitudeSquared();
+		Dir.normalize();
+		float Multiplier = Explosion.Impulse;
+		if (SqrDist > MaxSqr)
+			continue;
+		if (SqrDist > MinSqr)
+			Multiplier *= 1.0f - (FPlatformMath::Sqrt(SqrDist) - Explosion.FallOffMinDistance) / MinMaxDiff;
+				
+		PxVec3 Impulse = Dir * Multiplier;
+		PxRigidBodyExt::addForceAtPos(*Body, Impulse, ExplosionPos, PxForceMode::eIMPULSE);
+	}
 }
 
 void PhysSimulator::CreateSceneInternal()

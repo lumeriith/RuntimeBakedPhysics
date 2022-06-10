@@ -94,6 +94,8 @@ void AAdvPhysScene::Record(const float Interval, const int FrameCount)
 	Status.Current = Recording;
 	RecordData = {};
 	CopyObjectsToSimulator();
+	Simulator.ReserveEvents(FrameCount);
+	Simulator.AddEvents(EventPairs);
 	Simulator.StartRecord(&RecordData, Interval, FrameCount, GetWorld()->GetGravityZ());
 	RecordStartTime = FPlatformTime::Seconds();
 }
@@ -183,6 +185,16 @@ void AAdvPhysScene::PlayFrame(float Time)
 	}
 }
 
+void AAdvPhysScene::AddEvent(int Frame, std::any Event)
+{
+	EventPairs.Add(std::make_tuple(Frame, Event));
+}
+
+void AAdvPhysScene::ClearEvents()
+{
+	EventPairs.Empty();
+}
+
 // Called every frame
 void AAdvPhysScene::Tick(float DeltaTime)
 {
@@ -224,6 +236,7 @@ void AAdvPhysScene::DoRecordTick()
 			));
 		Status = {};
 		Simulator.ClearScene();
+		Simulator.FreeEvents();
 	}
 }
 

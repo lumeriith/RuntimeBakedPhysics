@@ -51,6 +51,10 @@ public:
 
 	UPROPERTY(EditAnywhere)
 		TSubclassOf<AActor> TestActor;
+
+	void AddEvent(int Frame, std::any Event);
+
+	void ClearEvents();
 	
 	virtual void Tick(float DeltaTime) override;
 
@@ -77,6 +81,8 @@ protected:
 	
 	TArray<FPhysObject> DynamicUEObjects;
 	TArray<FPhysObject> StaticUEObjects;
+
+	TArray<std::tuple<int, std::any>> EventPairs;
 	
 	FPhysRecordData RecordData;
 	double RecordStartTime;

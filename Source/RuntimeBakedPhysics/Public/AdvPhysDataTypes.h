@@ -1,4 +1,5 @@
 ﻿#pragma once
+#include "../../../../../../../../Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.31.31103/INCLUDE/any"
 
 struct FPhysObject
 {
@@ -13,16 +14,26 @@ struct FPhysObject
 	FRotator Rotation;
 };
 
-enum EPhysEventType : uint8
+struct FPhysEventNode
 {
-	Explosive
+	std::any Event;
+	std::shared_ptr<FPhysEventNode> Next;
+};
+
+struct FPhysEvent_Explosion
+{
+	FVector Position;
+	float Impulse;
+	float FallOffMinDistance;
+	float FallOffMaxDistance;
+};
+
+union FPhysEvent
+{
+	FPhysEvent_Explosion Explosion;
 };
 
 
-struct FPhysEvent
-{
-	
-};
 
 struct FPhysObjLocRot
 {
