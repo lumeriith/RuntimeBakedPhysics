@@ -26,7 +26,8 @@ public:
 
 	// Events
 	void ReserveEvents(int FrameCount);
-	void AddEvents(TArray<std::tuple<int, std::any>>& Pairs);
+	void AddEvents(TArray<std::tuple<float, std::any>>& Pairs, float Interval, int FrameCount);
+	void AddEvent(float Time, std::any Event, float Interval, int FrameCount);
 	void FreeEvents();
 
 	// Scene-Related

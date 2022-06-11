@@ -77,21 +77,27 @@ void PhysSimulator::ReserveEvents(int FrameCount)
 	Events.resize(FrameCount);
 }
 
-void PhysSimulator::AddEvents(TArray<std::tuple<int, std::any>>& Pairs)
+void PhysSimulator::AddEvents(TArray<std::tuple<float, std::any>>& Pairs, float Interval, int FrameCount)
 {
 	for (const auto& P : Pairs)
 	{
-		const int FrameCount = std::get<0>(P);
-		auto NewNode = std::make_unique<FPhysEventNode>();
-		NewNode->Event = std::get<1>(P);
-		if (!Events[FrameCount])
-		{
-			Events[FrameCount] = std::move(NewNode);
-			continue;
-		}
-		NewNode->Next = std::move(Events[FrameCount]);
-		Events[FrameCount] = std::move(NewNode);
+		const float Time = std::get<0>(P);
+		AddEvent(Time, std::get<1>(P), Interval, FrameCount);
 	}
+}
+
+void PhysSimulator::AddEvent(float Time, std::any Event, float Interval, int FrameCount) // Unnecessary copy of arg 'Event'?
+{
+	const int FrameIndex = FPlatformMath::Min(Time / Interval, FrameCount - 1);
+	auto NewNode = std::make_unique<FPhysEventNode>();
+	NewNode->Event = Event;
+	if (!Events[FrameIndex])
+	{
+		Events[FrameIndex] = std::move(NewNode);
+		return;
+	}
+	NewNode->Next = std::move(Events[FrameIndex]);
+	Events[FrameIndex] = std::move(NewNode);
 }
 
 void PhysSimulator::FreeEvents()

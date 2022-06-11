@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "AdvPhysDataTypes.h"
+#include "AdvPhysEventBase.h"
 #include "PhysSimulator.h"
 #include "GameFramework/Actor.h"
 #include "AdvPhysScene.generated.h"
@@ -20,6 +21,7 @@ struct FStatus
 	EAction Current;
 	float PlayStartTime;
 	float PlayLastFrameTime;
+	TArray<AAdvPhysEventBase*> PlayEventActors;
 };
 
 UCLASS()
@@ -51,14 +53,19 @@ public:
 	UPROPERTY(EditAnywhere)
 		TSubclassOf<AActor> TestActor;
 
-	void AddEvent(int Frame, std::any Event);
+	void AddEvent(float Time, std::any Event);
 
 	void ClearEvents();
 	
 	virtual void Tick(float DeltaTime) override;
 
 	UPROPERTY(EditAnywhere)
-	float PlayFramesPerSecond = -1;
+		float PlayFramesPerSecond = -1;
+
+	UPROPERTY(EditAnywhere)
+		TArray<AAdvPhysEventBase*> EventActors;
+
+	
 protected:
 	virtual void BeginPlay() override;
 
@@ -70,6 +77,7 @@ protected:
 	void DoPlayTick();
 
 	void PlayFrame(float Time);
+	void BroadcastEventsToActorsFrame(float Time);
 
 	void ResetPhysObjectsPosition();
 
@@ -81,7 +89,7 @@ protected:
 	TArray<FPhysObject> DynamicUEObjects;
 	TArray<FPhysObject> StaticUEObjects;
 
-	TArray<std::tuple<int, std::any>> EventPairs;
+	TArray<std::tuple<float, std::any>> EventPairs;
 	
 	FPhysRecordData RecordData;
 	double RecordStartTime;

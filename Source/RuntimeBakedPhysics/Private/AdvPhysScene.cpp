@@ -3,8 +3,6 @@
 
 #include "AdvPhysScene.h"
 
-#include "AdvPhysParent.h"
-
 // Sets default values
 AAdvPhysScene::AAdvPhysScene()
 {
@@ -95,7 +93,11 @@ void AAdvPhysScene::Record(const float Interval, const int FrameCount)
 	RecordData = {};
 	CopyObjectsToSimulator();
 	Simulator.ReserveEvents(FrameCount);
-	Simulator.AddEvents(EventPairs);
+	Simulator.AddEvents(EventPairs, Interval, FrameCount);
+	for (const auto& Actor : EventActors)
+	{
+		Simulator.AddEvent(Actor->Time, Actor->GetEvent(), Interval, FrameCount);
+	}
 	Simulator.StartRecord(&RecordData, Interval, FrameCount, GetWorld()->GetGravityZ());
 	RecordStartTime = FPlatformTime::Seconds();
 }
@@ -119,6 +121,8 @@ void AAdvPhysScene::Play()
 	Cancel();
 	Status.Current = Playing;
 	Status.PlayStartTime = GetWorld()->GetTimeSeconds();
+	Status.PlayLastFrameTime = -1.0f;
+	Status.PlayEventActors = EventActors;
 
 	for (const auto& Obj : DynamicUEObjects)
 	{
@@ -185,9 +189,29 @@ void AAdvPhysScene::PlayFrame(float Time)
 	}
 }
 
-void AAdvPhysScene::AddEvent(int Frame, std::any Event)
+void AAdvPhysScene::BroadcastEventsToActorsFrame(float Time)
 {
-	EventPairs.Add(std::make_tuple(Frame, Event));
+	if (Time > GetDuration())
+	{
+		for (const auto& Actor : Status.PlayEventActors)
+		{
+			Actor->BroadcastOnTrigger();
+		}
+		Status.PlayEventActors.Empty();
+		return;
+	}
+
+	for (int i = Status.PlayEventActors.Num() - 1; i >= 0; i--)
+	{
+		if (Status.PlayEventActors[i]->Time < Time) continue;
+		Status.PlayEventActors[i]->BroadcastOnTrigger();
+		Status.PlayEventActors.Pop();
+	}
+}
+
+void AAdvPhysScene::AddEvent(float Time, std::any Event)
+{
+	EventPairs.Add(std::make_tuple(Time, Event));
 }
 
 void AAdvPhysScene::ClearEvents()
@@ -250,6 +274,7 @@ void AAdvPhysScene::DoPlayTick()
 	
 	const float CurrentTime = Now - Status.PlayStartTime;
 	PlayFrame(CurrentTime);
+	BroadcastEventsToActorsFrame(CurrentTime);
 	Status.PlayLastFrameTime = Now;
 	if (CurrentTime > GetDuration())
 	{

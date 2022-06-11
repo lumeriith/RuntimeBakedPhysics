@@ -1,5 +1,6 @@
 ﻿#pragma once
 #include "../../../../../../../../Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.31.31103/INCLUDE/any"
+#include "AdvPhysDataTypes.generated.h"
 
 struct FPhysObject
 {
@@ -20,8 +21,11 @@ struct FPhysEventNode
 	std::shared_ptr<FPhysEventNode> Next;
 };
 
+USTRUCT()
 struct FPhysEvent_Explosion
 {
+	GENERATED_BODY()
+	
 	FVector Position;
 	float Impulse;
 	float FallOffMinDistance;
