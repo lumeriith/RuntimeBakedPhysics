@@ -25,10 +25,7 @@ public:
 	FOnPlay OnPlay;
 	UPROPERTY(BlueprintAssignable)
 	FOnTrigger OnTrigger;
-
-	UPROPERTY(EditAnywhere)
-	bool bPlayAllAttachedEmitterOnTrigger;
-
+	
 	UPROPERTY(EditAnywhere)
 	float Time;
 	

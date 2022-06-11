@@ -31,24 +31,12 @@ void AAdvPhysEventBase::BroadcastOnPlay()
 void AAdvPhysEventBase::BroadcastOnTrigger()
 {
 	OnTrigger.Broadcast();
-	
-	if (bPlayAllAttachedEmitterOnTrigger)
-	{
-		TArray<UParticleSystemComponent*> Comps;
-		GetComponents<UParticleSystemComponent>(Comps);
-		for (const auto& Comp : Comps)
-		{
-			Comp->ActivateSystem();
-			// do something
-		}
-	}
 }
 
 // Called every frame
 void AAdvPhysEventBase::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
-
 }
 
 std::any AAdvPhysEventBase::GetEvent()

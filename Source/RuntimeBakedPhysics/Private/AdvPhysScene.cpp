@@ -96,6 +96,11 @@ void AAdvPhysScene::Record(const float Interval, const int FrameCount)
 	Simulator.AddEvents(EventPairs, Interval, FrameCount);
 	for (const auto& Actor : EventActors)
 	{
+		if (!Actor)
+		{
+			FMessageLog("AdvPhysScene").Error(FText::FromString("EventActors array contains invalid item"));
+			continue;
+		}
 		Simulator.AddEvent(Actor->Time, Actor->GetEvent(), Interval, FrameCount);
 	}
 	Simulator.StartRecord(&RecordData, Interval, FrameCount, GetWorld()->GetGravityZ());
@@ -203,9 +208,9 @@ void AAdvPhysScene::BroadcastEventsToActorsFrame(float Time)
 
 	for (int i = Status.PlayEventActors.Num() - 1; i >= 0; i--)
 	{
-		if (Status.PlayEventActors[i]->Time < Time) continue;
+		if (Status.PlayEventActors[i]->Time > Time) continue;
 		Status.PlayEventActors[i]->BroadcastOnTrigger();
-		Status.PlayEventActors.Pop();
+		Status.PlayEventActors.RemoveAt(i);
 	}
 }
 

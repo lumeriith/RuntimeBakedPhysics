@@ -253,7 +253,7 @@ void PhysSimulator::RecordInternal()
 			return;
 		}
 
-		HandleEventsInternal(RecordData->FrameCount);
+		HandleEventsInternal(i);
 		
 		Scene->simulate(RecordData->FrameInterval);
 		Scene->fetchResults(true);
