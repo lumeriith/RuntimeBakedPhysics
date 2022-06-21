@@ -6,10 +6,12 @@
 #include "AdvPhysDataTypes.h"
 #include "AdvPhysEventBase.h"
 #include "PhysSimulator.h"
+#include "Engine/StaticMeshActor.h"
 #include "GameFramework/Actor.h"
 #include "AdvPhysScene.generated.h"
 
-enum EAction : uint8
+UENUM(BlueprintType)
+enum EAction
 {
 	Idle = 0,
 	Recording,
@@ -24,11 +26,13 @@ struct FStatus
 	TArray<AAdvPhysEventBase*> PlayEventActors;
 };
 
+DECLARE_MULTICAST_DELEGATE(FRecordFinishedDeleagte)
+
 UCLASS()
 class RUNTIMEBAKEDPHYSICS_API AAdvPhysScene : public AActor
 {
 	GENERATED_BODY()
-
+	
 public:
 	AAdvPhysScene();
 	
@@ -40,32 +44,59 @@ public:
 	UFUNCTION(BlueprintCallable)
 		void ClearPhysObjects();
 	
-	UFUNCTION(BlueprintCallable)
-		void Record(const float Interval, const int FrameCount);
+	void Record(const float Interval, const int FrameCount);
+	
 	UFUNCTION(BlueprintCallable)
 		void Play();
 	UFUNCTION(BlueprintCallable)
 		void Cancel();
+	
+	UFUNCTION(BlueprintCallable)
+		void FreezeDynamicObjects();
+	UFUNCTION(BlueprintCallable)
+		void UnfreezeDynamicObjects();
 
-	UPROPERTY(EditAnywhere)
-		bool bEnableInterpolation = true;
+	UFUNCTION(BlueprintCallable)
+		EAction GetAction() const;
 
-	UPROPERTY(EditAnywhere)
-		TSubclassOf<AActor> TestActor;
+	UFUNCTION(BlueprintCallable)
+		float GetRecordProgress() const;
+
+	UFUNCTION(BlueprintCallable)
+		float GetPlayFramesPerSecond() const;
+
+	UFUNCTION(BlueprintCallable)
+		int GetRecordDataFrameCount() const;
+
+	UFUNCTION(BlueprintCallable)
+		float GetRecordDataFrameInterval() const;
+
+	UFUNCTION(BlueprintCallable)
+		bool GetRecordDataFinished() const;
+
 
 	void AddEvent(float Time, std::any Event);
-
 	void ClearEvents();
 	
 	virtual void Tick(float DeltaTime) override;
 
 	UPROPERTY(EditAnywhere)
-		float PlayFramesPerSecond = -1;
+	float PlayFramesPerSecond = -1;
+	
+	UPROPERTY(EditAnywhere)
+	bool bEnableInterpolation = true;
+	
+	UPROPERTY(EditAnywhere)
+	bool bAddTaggedObjectsOnBeginPlay = false;
 
 	UPROPERTY(EditAnywhere)
-		TArray<AAdvPhysEventBase*> EventActors;
+	bool bFreezeDynamicObjectOnAdd = true;
 
-	
+	UPROPERTY(EditAnywhere)
+	TArray<AAdvPhysEventBase*> EventActors;
+
+	FRecordFinishedDeleagte RecordFinished;
+
 protected:
 	virtual void BeginPlay() override;
 
@@ -79,6 +110,7 @@ protected:
 	void PlayFrame(float Time);
 	void BroadcastEventsToActorsFrame(float Time);
 
+	void AddTaggedObjects();
 	void ResetPhysObjectsPosition();
 
 	void CopyObjectsToSimulator();
@@ -86,8 +118,8 @@ protected:
 	PhysSimulator Simulator;
 	FStatus Status;
 	
-	TArray<FPhysObject> DynamicUEObjects;
-	TArray<FPhysObject> StaticUEObjects;
+	TArray<FPhysObject> DynamicObjEntries;
+	TArray<FPhysObject> StaticObjEntries;
 
 	TArray<std::tuple<float, std::any>> EventPairs;
 	

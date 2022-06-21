@@ -3,6 +3,8 @@
 
 #include "AdvPhysScene.h"
 
+#include "Kismet/GameplayStatics.h"
+
 // Sets default values
 AAdvPhysScene::AAdvPhysScene()
 {
@@ -20,7 +22,12 @@ void AAdvPhysScene::AddDynamicObject(UStaticMeshComponent* Component)
 	RecordData = FPhysRecordData();
 	Status = FStatus();
 	
-	DynamicUEObjects.Add(FPhysObject(Component));
+	DynamicObjEntries.Add(FPhysObject(Component));
+
+	if (bFreezeDynamicObjectOnAdd)
+	{
+		Component->SetSimulatePhysics(false);
+	}
 }
 
 void AAdvPhysScene::AddStaticObject(UStaticMeshComponent* Component)
@@ -34,21 +41,21 @@ void AAdvPhysScene::AddStaticObject(UStaticMeshComponent* Component)
 	RecordData = FPhysRecordData();
 	Status = FStatus();
 	
-	StaticUEObjects.Add(FPhysObject(Component));
+	StaticObjEntries.Add(FPhysObject(Component));
 }
 
 void AAdvPhysScene::ClearPhysObjects()
 {
 	RecordData = FPhysRecordData();
 	Status = FStatus();
-	DynamicUEObjects.Empty();
-	StaticUEObjects.Empty();
+	DynamicObjEntries.Empty();
+	StaticObjEntries.Empty();
 	Simulator.ClearScene();
 }
 
 void AAdvPhysScene::ResetPhysObjectsPosition()
 {
-	for (const auto& Obj : DynamicUEObjects)
+	for (const auto& Obj : DynamicObjEntries)
 	{
 		Obj.Comp->SetWorldLocationAndRotation(Obj.Location, Obj.Rotation);
 	}
@@ -57,12 +64,12 @@ void AAdvPhysScene::ResetPhysObjectsPosition()
 void AAdvPhysScene::CopyObjectsToSimulator()
 {
 	const double StartSeconds = FPlatformTime::Seconds();
-	for (const auto& Obj : DynamicUEObjects)
+	for (const auto& Obj : DynamicObjEntries)
 	{
 		Simulator.AddDynamicBody(Obj.Comp);
 	}
 
-	for (const auto& Obj : StaticUEObjects)
+	for (const auto& Obj : StaticObjEntries)
 	{
 		Simulator.AddStaticBody(Obj.Comp);
 	}
@@ -72,8 +79,8 @@ void AAdvPhysScene::CopyObjectsToSimulator()
 	FText::Format(
 		FText::FromString("CopyObjectsToSimulator took {0}ms, {1} dynamic objects, {2} static objects."),
 		(Now - StartSeconds) * 1000,
-		DynamicUEObjects.Num(),
-		StaticUEObjects.Num()
+		DynamicObjEntries.Num(),
+		StaticObjEntries.Num()
 	));
 }
 
@@ -82,7 +89,7 @@ void AAdvPhysScene::Record(const float Interval, const int FrameCount)
 	FMessageLog("AdvPhysScene").Info(
 		FText::Format(
 			FText::FromString("Start Recording, {0} objects, {1} frames, {2}s each."),
-			DynamicUEObjects.Num(),
+			DynamicObjEntries.Num(),
 			FrameCount,
 			Interval
 		)
@@ -117,7 +124,7 @@ void AAdvPhysScene::Play()
 	FMessageLog("AdvPhysScene").Info(
 		FText::Format(
 			FText::FromString("Start Playing, {0} objects, {1} frames, {2}s each."),
-			DynamicUEObjects.Num(),
+			DynamicObjEntries.Num(),
 			RecordData.FrameCount,
 			RecordData.FrameInterval
 		)
@@ -129,7 +136,7 @@ void AAdvPhysScene::Play()
 	Status.PlayLastFrameTime = -1.0f;
 	Status.PlayEventActors = EventActors;
 
-	for (const auto& Obj : DynamicUEObjects)
+	for (const auto& Obj : DynamicObjEntries)
 	{
 		Obj.Comp->SetSimulatePhysics(false);
 	}
@@ -150,6 +157,52 @@ void AAdvPhysScene::Cancel()
 	Status = {};
 }
 
+void AAdvPhysScene::FreezeDynamicObjects()
+{
+	for (const auto& Obj : DynamicObjEntries)
+	{
+		Obj.Comp->SetSimulatePhysics(false);
+	}
+}
+
+void AAdvPhysScene::UnfreezeDynamicObjects()
+{
+	for (const auto& Obj : DynamicObjEntries)
+	{
+		Obj.Comp->SetSimulatePhysics(true);
+	}
+}
+
+EAction AAdvPhysScene::GetAction() const
+{
+	return Status.Current;
+}
+
+float AAdvPhysScene::GetRecordProgress() const
+{
+	return RecordData.Progress;
+}
+
+float AAdvPhysScene::GetPlayFramesPerSecond() const
+{
+	return PlayFramesPerSecond;
+}
+
+int AAdvPhysScene::GetRecordDataFrameCount() const
+{
+	return RecordData.FrameCount;
+}
+
+float AAdvPhysScene::GetRecordDataFrameInterval() const
+{
+	return RecordData.FrameInterval;
+}
+
+bool AAdvPhysScene::GetRecordDataFinished() const
+{
+	return RecordData.Finished;
+}
+
 float AAdvPhysScene::GetDuration() const
 {
 	return RecordData.FrameCount * RecordData.FrameInterval;
@@ -166,7 +219,7 @@ void AAdvPhysScene::PlayFrame(float Time)
 	if (EndFrame >= RecordData.FrameCount)
 		EndFrame = RecordData.FrameCount - 1;
 
-	const size_t NumOfObjects = DynamicUEObjects.Num();
+	const size_t NumOfObjects = DynamicObjEntries.Num();
 
 	// Set location/rotation as-is
 	if (!bEnableInterpolation || StartFrame == EndFrame)
@@ -175,7 +228,7 @@ void AAdvPhysScene::PlayFrame(float Time)
 		{
 			const FPhysObjLocRot& StartEntry = RecordData.ObjLocRot[StartFrame * NumOfObjects + ObjIndex];
 
-			DynamicUEObjects[ObjIndex].Comp->SetWorldLocationAndRotationNoPhysics(StartEntry.Location, StartEntry.Rotation);
+			DynamicObjEntries[ObjIndex].Comp->SetWorldLocationAndRotationNoPhysics(StartEntry.Location, StartEntry.Rotation);
 		}
 		return;
 	}
@@ -190,7 +243,7 @@ void AAdvPhysScene::PlayFrame(float Time)
 		const FVector Loc = StartEntry.Location * (1.0f - Value) + EndEntry.Location * Value;
 		const FRotator Rot = FMath::Lerp(StartEntry.Rotation, EndEntry.Rotation, Value);
 
-		DynamicUEObjects[ObjIndex].Comp->SetWorldLocationAndRotationNoPhysics(Loc, Rot);
+		DynamicObjEntries[ObjIndex].Comp->SetWorldLocationAndRotationNoPhysics(Loc, Rot);
 	}
 }
 
@@ -212,6 +265,53 @@ void AAdvPhysScene::BroadcastEventsToActorsFrame(float Time)
 		Status.PlayEventActors[i]->BroadcastOnTrigger();
 		Status.PlayEventActors.RemoveAt(i);
 	}
+}
+
+void AAdvPhysScene::AddTaggedObjects()
+{
+	int NumOfDynActors = 0, NumOfStaticActors = 0, NumOfDynComps = 0, NumOfStaticComps = 0;
+	const double StartSeconds = FPlatformTime::Seconds();
+	
+	TArray<AActor*> Actors;
+	TArray<UStaticMeshComponent*> Comps;
+	UGameplayStatics::GetAllActorsWithTag(GetWorld(), FName("AdvPhysDynamic"), Actors);
+	for (const auto& Actor : Actors)
+	{
+		NumOfDynActors++;
+		Comps.Empty();
+		Actor->GetComponents<UStaticMeshComponent>(Comps);
+		for (const auto& Comp : Comps)
+		{
+			NumOfDynComps++;
+			AddDynamicObject(Comp);
+		}
+	}
+		
+	Actors.Empty();
+	UGameplayStatics::GetAllActorsWithTag(GetWorld(), FName("AdvPhysStatic"), Actors);
+	for (const auto& Actor : Actors)
+	{
+		NumOfStaticActors++;
+		Comps.Empty();
+		Actor->GetComponents<UStaticMeshComponent>(Comps);
+		for (const auto& Comp : Comps)
+		{
+			NumOfStaticComps++;
+			AddStaticObject(Comp);
+		}
+	}
+
+	const double Now = FPlatformTime::Seconds();
+	
+	FMessageLog("AdvPhysScene").Info(
+		FText::Format(
+			FText::FromString("AddTaggedObjects took {0}ms, Added dynamic: {1}/{2}, static: {3}/{4} (Actors/Components)"),
+			(Now - StartSeconds) * 1000,
+			NumOfDynActors,
+			NumOfDynComps,
+			NumOfStaticActors,
+			NumOfStaticComps
+	));
 }
 
 void AAdvPhysScene::AddEvent(float Time, std::any Event)
@@ -246,6 +346,11 @@ void AAdvPhysScene::BeginPlay()
 {
 	Super::BeginPlay();
 	Simulator.Initialize();
+
+	if (bAddTaggedObjectsOnBeginPlay)
+	{
+		AddTaggedObjects();
+	}
 }
 
 void AAdvPhysScene::EndPlay(const EEndPlayReason::Type EndPlayReason)
@@ -266,6 +371,7 @@ void AAdvPhysScene::DoRecordTick()
 		Status = {};
 		Simulator.ClearScene();
 		Simulator.FreeEvents();
+		RecordFinished.Broadcast();
 	}
 }
 

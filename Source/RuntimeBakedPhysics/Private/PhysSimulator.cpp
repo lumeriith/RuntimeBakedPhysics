@@ -335,9 +335,9 @@ void PhysSimulator::GetShapeInternal(const UStaticMeshComponent* Comp, bool bUse
 	
 	if (bUseSimpleGeometry)
 	{
-		const PxGeometry PGeom = GetSimpleGeometry(Comp);
+		const auto& PGeom = GetSimpleGeometry(Comp);
 		OutShape = PhysCompoundShape();
-		OutShape.Shapes.push_back(Physics->createShape(PGeom, *PMaterial));
+		OutShape.Shapes.push_back(Physics->createShape(*PGeom, *PMaterial));
 		return;
 	}
 	
@@ -398,7 +398,12 @@ void PhysSimulator::GetShapeInternal(const UStaticMeshComponent* Comp, bool bUse
 	}
 }
 
-PxGeometry PhysSimulator::GetSimpleGeometry(const UStaticMeshComponent* Comp) const
+/**
+ * @brief You must free the returned pointer to PxGeometry!
+ * @param Comp 
+ * @return 
+ */
+std::shared_ptr<PxGeometry> PhysSimulator::GetSimpleGeometry(const UStaticMeshComponent* Comp) const
 {
 	// Use ColShape to generate simple geometry regardless of Collision Body used by component
 	const auto UColShape = Comp->GetCollisionShape();
@@ -409,19 +414,17 @@ PxGeometry PhysSimulator::GetSimpleGeometry(const UStaticMeshComponent* Comp) co
 		// Unsupported TODO?
 		break;
 	case ECollisionShape::Box:
-		return PxGeometry(PxBoxGeometry(U2PVector(UColShape.GetBox())));
+		return std::make_shared<PxBoxGeometry>(U2PVector(UColShape.GetBox()));
 	case ECollisionShape::Sphere:
-		return PxGeometry(PxSphereGeometry(UColShape.GetSphereRadius()));
+		return std::make_shared<PxSphereGeometry>(UColShape.GetSphereRadius());
 	case ECollisionShape::Capsule:
-		return PxGeometry(
-			PxCapsuleGeometry(UColShape.GetCapsuleRadius(), UColShape.GetCapsuleHalfHeight())
-			);
+		return std::make_shared<PxCapsuleGeometry>(UColShape.GetCapsuleRadius(), UColShape.GetCapsuleHalfHeight());
 	default: ;
 	}
 	FMessageLog("PhysSimulator").Error(
 			FText::FromString("Unsupported Geometry Type")
 		);
-	return PxGeometry(PxBoxGeometry());
+	return nullptr;
 }
 
 PxConvexMesh* PhysSimulator::GetConvexMeshInternal(UStaticMesh* Mesh, int ConvexElemIndex)
@@ -432,20 +435,29 @@ PxConvexMesh* PhysSimulator::GetConvexMeshInternal(UStaticMesh* Mesh, int Convex
 		return ConvexMeshes[Id];
 	
 	const auto& Convex = Mesh->GetBodySetup()->AggGeom.ConvexElems[ConvexElemIndex];
+
+	TSet<int> UsedIndices;
+	for (int i = 0; i < Convex.IndexData.Num(); i++)
+	{
+		UsedIndices.Add(Convex.IndexData[i]);
+	}
 	
 	std::vector<PxVec3> PVerts;
-	PVerts.resize(Convex.VertexData.Num());
-	for (int i = 0; i < Convex.VertexData.Num(); i++)
+	
+	PVerts.resize(UsedIndices.Num());
+	int Cursor = 0;
+	for (const int Index : UsedIndices)
 	{
-		PVerts[i] = U2PVector(Convex.VertexData[i]);
+		PVerts[Cursor] = U2PVector(Convex.VertexData[Index]);
+		Cursor++;
 	}
 			
 	PxConvexMeshDesc convexDesc;
-	convexDesc.points.count     = Convex.VertexData.Num();
+	convexDesc.points.count     = PVerts.size();
 	convexDesc.points.stride    = sizeof(PxVec3);
 	convexDesc.points.data      = PVerts.data();
 	convexDesc.flags            = PxConvexFlag::eCOMPUTE_CONVEX;
-	convexDesc.vertexLimit		= 20;
+	convexDesc.vertexLimit		= 40;
 			
 	// mesh should be validated before cooking without the mesh cleaning
 	// Remove on release build?

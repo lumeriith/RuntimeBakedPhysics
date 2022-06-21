@@ -49,7 +49,7 @@ protected:
 	void CreateSceneInternal();
 
 	void GetShapeInternal(const UStaticMeshComponent* Comp, bool bUseSimpleGeometry, PhysCompoundShape& OutShape);
-	PxGeometry GetSimpleGeometry(const UStaticMeshComponent* Comp) const;
+	std::shared_ptr<PxGeometry> GetSimpleGeometry(const UStaticMeshComponent* Comp) const;
 	PxConvexMesh* GetConvexMeshInternal(UStaticMesh* Mesh, int ConvexElemIndex);
 
 	FPhysRecordData* RecordData;

@@ -45,11 +45,22 @@ struct FPhysObjLocRot
 	FRotator Rotation;
 };
 
+USTRUCT(BlueprintType)
 struct FPhysRecordData
 {
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly)
 	bool Finished;
+
+	UPROPERTY(BlueprintReadOnly)
 	float Progress;
+
+	UPROPERTY(BlueprintReadOnly)
 	int FrameCount;
+
+	UPROPERTY(BlueprintReadOnly)
 	float FrameInterval;
+	
 	TArray<FPhysObjLocRot> ObjLocRot;
 };
