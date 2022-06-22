@@ -356,7 +356,7 @@ void PhysSimulator::GetShapeInternal(const UStaticMeshComponent* Comp, bool bUse
 	for (auto& Box : AggGeom.BoxElems)
 	{
 		// TODO proper scaling to cubes?
-		PxBoxGeometry PGeom(Box.X * UScale.X, Box.Y * UScale.Y, Box.Z * UScale.Z);
+		PxBoxGeometry PGeom(Box.X * UScale.X / 2.0f, Box.Y * UScale.Y / 2.0f, Box.Z * UScale.Z / 2.0f);
 		PxTransform PTransform = U2PTransform(Box.GetTransform());
 		const auto NewShape = Physics->createShape(PGeom, *PMaterial);
 		NewShape->setLocalPose(PTransform);
@@ -456,7 +456,7 @@ PxConvexMesh* PhysSimulator::GetConvexMeshInternal(UStaticMesh* Mesh, int Convex
 	convexDesc.points.count     = PVerts.size();
 	convexDesc.points.stride    = sizeof(PxVec3);
 	convexDesc.points.data      = PVerts.data();
-	convexDesc.flags            = PxConvexFlag::eCOMPUTE_CONVEX;
+	convexDesc.flags            = PxConvexFlag::eCOMPUTE_CONVEX | PxConvexFlag::eCHECK_ZERO_AREA_TRIANGLES | PxConvexFlag::eQUANTIZE_INPUT;
 	convexDesc.vertexLimit		= 40;
 			
 	// mesh should be validated before cooking without the mesh cleaning
