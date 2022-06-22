@@ -355,9 +355,12 @@ void PhysSimulator::GetShapeInternal(const UStaticMeshComponent* Comp, bool bUse
 		
 	for (auto& Box : AggGeom.BoxElems)
 	{
-		// TODO proper scaling to cubes?
 		PxBoxGeometry PGeom(Box.X * UScale.X / 2.0f, Box.Y * UScale.Y / 2.0f, Box.Z * UScale.Z / 2.0f);
 		PxTransform PTransform = U2PTransform(Box.GetTransform());
+		PTransform.p.x *= UScale.X; // Translation in object space is affected by world transform
+		PTransform.p.y *= UScale.Y;
+		PTransform.p.z *= UScale.Z;
+		
 		const auto NewShape = Physics->createShape(PGeom, *PMaterial);
 		NewShape->setLocalPose(PTransform);
 		OutShape.Shapes.push_back(NewShape);
@@ -368,6 +371,10 @@ void PhysSimulator::GetShapeInternal(const UStaticMeshComponent* Comp, bool bUse
 		const auto PMesh = GetConvexMeshInternal(Comp->GetStaticMesh(), i);
 		PxConvexMeshGeometry PGeom(PMesh, PxMeshScale(PScale));
 		PxTransform PTransform = U2PTransform(AggGeom.ConvexElems[i].GetTransform());
+		PTransform.p.x *= UScale.X;
+		PTransform.p.y *= UScale.Y;
+		PTransform.p.z *= UScale.Z;
+		
 		const auto NewShape = Physics->createShape(PGeom, *PMaterial);
 		NewShape->setLocalPose(PTransform);
 		OutShape.Shapes.push_back(NewShape);
@@ -377,6 +384,10 @@ void PhysSimulator::GetShapeInternal(const UStaticMeshComponent* Comp, bool bUse
 	{
 		PxSphereGeometry PGeom(Sphere.Radius * UScale.X);
 		PxTransform PTransform = U2PTransform(Sphere.GetTransform());
+		PTransform.p.x *= UScale.X;
+		PTransform.p.y *= UScale.Y;
+		PTransform.p.z *= UScale.Z;
+		
 		const auto NewShape = Physics->createShape(PGeom, *PMaterial);
 		NewShape->setLocalPose(PTransform);
 		OutShape.Shapes.push_back(NewShape);
@@ -387,6 +398,10 @@ void PhysSimulator::GetShapeInternal(const UStaticMeshComponent* Comp, bool bUse
 		// TODO scale capsules?
 		PxCapsuleGeometry PGeom(Capsule.Radius, Capsule.Length / 2.0f);
 		PxTransform PTransform = U2PTransform(Capsule.GetTransform());
+		PTransform.p.x *= UScale.X;
+		PTransform.p.y *= UScale.Y;
+		PTransform.p.z *= UScale.Z;
+		
 		const auto NewShape = Physics->createShape(PGeom, *PMaterial);
 		NewShape->setLocalPose(PTransform);
 		OutShape.Shapes.push_back(NewShape);
