@@ -54,20 +54,18 @@ protected:
 
 	FPhysRecordData* RecordData;
 
-	PxDefaultAllocator		Allocator;
-	PxDefaultErrorCallback	ErrorCallback;
+	inline static int StaticRefCount = 0;
+	inline static PxDefaultAllocator		Allocator;
+	inline static PxDefaultErrorCallback	ErrorCallback;
 
-	PxFoundation*			Foundation;
-	PxPhysics*				Physics;
+	inline static PxFoundation*				Foundation;
+	inline static PxPhysics*				Physics;
 
-	PxDefaultCpuDispatcher*	Dispatcher;
-	PxScene*				Scene;
-
-	PxPvd*                  Pvd;
-
-	PxCooking*				Cooking;
-
-	PxReal stackZ = 10.0f;
+	inline static PxDefaultCpuDispatcher*	Dispatcher;
+	inline static PxPvd*						Pvd;
+	inline static PxCooking*				Cooking;
+	
+	PxScene* Scene;
 	
 	bool bIsInitialized;
 	bool bIsRecording;

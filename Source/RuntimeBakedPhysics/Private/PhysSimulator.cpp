@@ -6,11 +6,7 @@
 #include "PhysXPublicCore.h"
 #include "PhysicalMaterials/PhysicalMaterial.h"
 
-PhysSimulator::PhysSimulator(): RecordData(nullptr), Foundation(nullptr), Physics(nullptr), Dispatcher(nullptr),
-                                Scene(nullptr),
-                                Pvd(nullptr), Cooking(nullptr),
-                                bIsInitialized(false),
-                                bIsRecording(false),
+PhysSimulator::PhysSimulator(): RecordData(nullptr), Scene(nullptr), bIsInitialized(false), bIsRecording(false),
                                 bWantsToStop(false)
 {
 }
@@ -28,28 +24,24 @@ void PhysSimulator::Initialize()
 			);
 		return;
 	}
+	
 	FMessageLog("PhysSimulator").Info(
 		FText::FromString("Initializing")
 		);
-	
-	Foundation = PxCreateFoundation(PX_FOUNDATION_VERSION, Allocator, ErrorCallback);
-	try
+
+	StaticRefCount++;
+	if (StaticRefCount == 1)
 	{
+		FMessageLog("PhysSimulator").Info(FText::FromString("Preparing Static PhysX Components"));
+		Foundation = PxCreateFoundation(PX_FOUNDATION_VERSION, Allocator, ErrorCallback);
 		Pvd = PxCreatePvd(*Foundation);
 		PxPvdTransport* Transport = PxDefaultPvdSocketTransportCreate("localhost", 5425, 10);
 		Pvd->connect(*Transport,PxPvdInstrumentationFlag::eALL);
+		Physics = PxCreatePhysics(PX_PHYSICS_VERSION, *Foundation, PxTolerancesScale(), true, Pvd);
+		Cooking = PxCreateCooking(PX_PHYSICS_VERSION, *Foundation, PxCookingParams(Physics->getTolerancesScale()));
 	}
-	catch(...)
-	{
-		
-	}
-	
-	Physics = PxCreatePhysics(PX_PHYSICS_VERSION, *Foundation, PxTolerancesScale(), true, Pvd);
 	
 	CreateSceneInternal();
-
-	Cooking = PxCreateCooking(PX_PHYSICS_VERSION, *Foundation, PxCookingParams(Physics->getTolerancesScale()));
-	
 	bIsInitialized = true;
 }
 
@@ -67,13 +59,18 @@ void PhysSimulator::Cleanup()
 		FText::FromString("Cleaning up")
 		);
 	Scene->release();
-	Dispatcher->release();
-	Physics->release();	
-	PxPvdTransport* transport = Pvd->getTransport();
-	Pvd->release();
-	transport->release();
-	Cooking->release();
-	Foundation->release();
+	StaticRefCount--;
+	if (StaticRefCount == 0)
+	{
+		FMessageLog("PhysSimulator").Info(FText::FromString("Releasing Static PhysX Components"));
+		Dispatcher->release();
+		Physics->release();	
+		PxPvdTransport* transport = Pvd->getTransport();
+		Pvd->release();
+		transport->release();
+		Cooking->release();
+		Foundation->release();
+	}
 	
 	bIsInitialized = false;
 }
