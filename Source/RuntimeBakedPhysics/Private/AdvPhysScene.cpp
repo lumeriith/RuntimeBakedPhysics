@@ -274,7 +274,7 @@ void AAdvPhysScene::AddTaggedObjects()
 	
 	TArray<AActor*> Actors;
 	TArray<UStaticMeshComponent*> Comps;
-	UGameplayStatics::GetAllActorsWithTag(GetWorld(), FName("AdvPhysDynamic"), Actors);
+	UGameplayStatics::GetAllActorsWithTag(GetWorld(), DynamicTag, Actors);
 	for (const auto& Actor : Actors)
 	{
 		NumOfDynActors++;
@@ -288,7 +288,7 @@ void AAdvPhysScene::AddTaggedObjects()
 	}
 		
 	Actors.Empty();
-	UGameplayStatics::GetAllActorsWithTag(GetWorld(), FName("AdvPhysStatic"), Actors);
+	UGameplayStatics::GetAllActorsWithTag(GetWorld(), StaticTag, Actors);
 	for (const auto& Actor : Actors)
 	{
 		NumOfStaticActors++;

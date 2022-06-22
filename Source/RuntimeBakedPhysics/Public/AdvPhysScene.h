@@ -90,6 +90,12 @@ public:
 	bool bAddTaggedObjectsOnBeginPlay = false;
 
 	UPROPERTY(EditAnywhere)
+	FName DynamicTag = FName("AdvPhysDynamic");
+
+	UPROPERTY(EditAnywhere)
+	FName StaticTag = FName("AdvPhysStatic");
+	
+	UPROPERTY(EditAnywhere)
 	bool bFreezeDynamicObjectOnAdd = true;
 
 	UPROPERTY(EditAnywhere)
