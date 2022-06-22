@@ -33,11 +33,17 @@ void PhysSimulator::Initialize()
 		);
 	
 	Foundation = PxCreateFoundation(PX_FOUNDATION_VERSION, Allocator, ErrorCallback);
-
-	Pvd = PxCreatePvd(*Foundation);
-	PxPvdTransport* Transport = PxDefaultPvdSocketTransportCreate("localhost", 5425, 10);
-	Pvd->connect(*Transport,PxPvdInstrumentationFlag::eALL);
-
+	try
+	{
+		Pvd = PxCreatePvd(*Foundation);
+		PxPvdTransport* Transport = PxDefaultPvdSocketTransportCreate("localhost", 5425, 10);
+		Pvd->connect(*Transport,PxPvdInstrumentationFlag::eALL);
+	}
+	catch(...)
+	{
+		
+	}
+	
 	Physics = PxCreatePhysics(PX_PHYSICS_VERSION, *Foundation, PxTolerancesScale(), true, Pvd);
 	
 	CreateSceneInternal();
