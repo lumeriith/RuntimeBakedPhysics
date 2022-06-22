@@ -413,11 +413,6 @@ void PhysSimulator::GetShapeInternal(const UStaticMeshComponent* Comp, bool bUse
 	}
 }
 
-/**
- * @brief You must free the returned pointer to PxGeometry!
- * @param Comp 
- * @return 
- */
 std::shared_ptr<PxGeometry> PhysSimulator::GetSimpleGeometry(const UStaticMeshComponent* Comp) const
 {
 	// Use ColShape to generate simple geometry regardless of Collision Body used by component
