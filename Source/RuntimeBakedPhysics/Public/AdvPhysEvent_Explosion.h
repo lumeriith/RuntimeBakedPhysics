@@ -5,10 +5,7 @@
 #include "CoreMinimal.h"
 #include "AdvPhysDataTypes.h"
 #include "AdvPhysEventBase.h"
-#include "GameFramework/Actor.h"
 #include "AdvPhysEvent_Explosion.generated.h"
-
-
 
 UCLASS()
 class RUNTIMEBAKEDPHYSICS_API AAdvPhysEvent_Explosion : public AAdvPhysEventBase
@@ -27,5 +24,6 @@ public:
 		float FallOffMaxDistance;
 
 protected:
-	virtual std::any GetEvent() override;
+	virtual void DoEventPhysX(std::vector<physx::PxRigidDynamic*>& Bodies) override;
+	virtual void DoEventUE(TArray<FPhysObject>& Dynamics) override;
 };

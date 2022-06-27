@@ -80,20 +80,11 @@ void PhysSimulator::ReserveEvents(int FrameCount)
 	Events.resize(FrameCount);
 }
 
-void PhysSimulator::AddEvents(TArray<std::tuple<float, std::any>>& Pairs, float Interval, int FrameCount)
-{
-	for (const auto& P : Pairs)
-	{
-		const float Time = std::get<0>(P);
-		AddEvent(Time, std::get<1>(P), Interval, FrameCount);
-	}
-}
-
-void PhysSimulator::AddEvent(float Time, std::any Event, float Interval, int FrameCount) // Unnecessary copy of arg 'Event'?
+void PhysSimulator::AddEvent(float Time, AAdvPhysEventBase* Event, float Interval, int FrameCount)
 {
 	const int FrameIndex = FPlatformMath::Min(Time / Interval, FrameCount - 1);
 	auto NewNode = std::make_unique<FPhysEventNode>();
-	NewNode->Event = Event;
+	NewNode->EventActor = Event;
 	if (!Events[FrameIndex])
 	{
 		Events[FrameIndex] = std::move(NewNode);
@@ -278,35 +269,8 @@ void PhysSimulator::HandleEventsInternal(int Frame)
 	auto& EventCursor = Events[Frame];
 	while (EventCursor)
 	{
-		if (EventCursor->Event.type() == typeid(FPhysEvent_Explosion))
-			HandleExplosionEventInternal(std::any_cast<FPhysEvent_Explosion>(EventCursor->Event));
-		
+		EventCursor->EventActor->DoEventPhysX(ObservedBodies);
 		EventCursor = EventCursor->Next;
-	}
-}
-
-void PhysSimulator::HandleExplosionEventInternal(FPhysEvent_Explosion&& Explosion)
-{
-	const auto ExplosionPos = U2PVector(Explosion.Position);
-
-	// Fall-Offs
-	const float MaxSqr = Explosion.FallOffMaxDistance * Explosion.FallOffMaxDistance;
-	const float MinSqr = Explosion.FallOffMinDistance * Explosion.FallOffMinDistance;
-	const float MinMaxDiff = Explosion.FallOffMaxDistance - Explosion.FallOffMinDistance;
-			
-	for (const auto& Body : ObservedBodies)
-	{
-		PxVec3 Dir = Body->getGlobalPose().p - ExplosionPos;
-		float SqrDist = Dir.magnitudeSquared();
-		Dir.normalize();
-		float Multiplier = Explosion.Impulse;
-		if (SqrDist > MaxSqr)
-			continue;
-		if (SqrDist > MinSqr)
-			Multiplier *= 1.0f - (FPlatformMath::Sqrt(SqrDist) - Explosion.FallOffMinDistance) / MinMaxDiff;
-				
-		PxVec3 Impulse = Dir * Multiplier;
-		PxRigidBodyExt::addForceAtPos(*Body, Impulse, ExplosionPos, PxForceMode::eIMPULSE);
 	}
 }
 

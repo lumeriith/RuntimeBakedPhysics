@@ -15,7 +15,8 @@ enum EAction
 {
 	Idle = 0,
 	Recording,
-	Playing
+	Playing,
+	PlayingRealtimeSimulation
 };
 
 struct FStatus
@@ -49,12 +50,17 @@ public:
 	UFUNCTION(BlueprintCallable)
 		void Play();
 	UFUNCTION(BlueprintCallable)
+		void PlayRealtimeSimulation();
+	UFUNCTION(BlueprintCallable)
 		void Cancel();
 	
 	UFUNCTION(BlueprintCallable)
 		void FreezeDynamicObjects();
 	UFUNCTION(BlueprintCallable)
 		void UnfreezeDynamicObjects();
+
+	UFUNCTION(BlueprintCallable)
+		void SetPlayFramesPerSecond(float FPS);
 
 	UFUNCTION(BlueprintCallable)
 		EAction GetAction() const;
@@ -73,10 +79,6 @@ public:
 
 	UFUNCTION(BlueprintCallable)
 		bool GetRecordDataFinished() const;
-
-
-	void AddEvent(float Time, std::any Event);
-	void ClearEvents();
 	
 	virtual void Tick(float DeltaTime) override;
 
@@ -112,9 +114,10 @@ protected:
 
 	void DoRecordTick();
 	void DoPlayTick();
+	void DoPlayRealtimeSimulationTick();
 
 	void PlayFrame(float Time);
-	void BroadcastEventsToActorsFrame(float Time);
+	void HandleEventsInFrame(float Time, bool ApplyEventsToRealWorld);
 
 	void AddTaggedObjects();
 	void ResetPhysObjectsPosition();
@@ -126,8 +129,6 @@ protected:
 	
 	TArray<FPhysObject> DynamicObjEntries;
 	TArray<FPhysObject> StaticObjEntries;
-
-	TArray<std::tuple<float, std::any>> EventPairs;
 	
 	FPhysRecordData RecordData;
 	double RecordStartTime;

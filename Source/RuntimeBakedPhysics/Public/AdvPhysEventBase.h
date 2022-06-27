@@ -2,8 +2,10 @@
 
 #pragma once
 
+#include <PxRigidDynamic.h>
+
 #include "CoreMinimal.h"
-#include "../../../../../../../../Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.31.31103/INCLUDE/any"
+#include "AdvPhysDataTypes.h"
 #include "GameFramework/Actor.h"
 #include "AdvPhysEventBase.generated.h"
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnPlay);
@@ -35,7 +37,10 @@ protected:
 	
 	void BroadcastOnPlay();
 	void BroadcastOnTrigger();
-	virtual std::any GetEvent();
+
+	virtual void DoEventPhysX(std::vector<physx::PxRigidDynamic*>& Bodies);
+	virtual void DoEventUE(TArray<FPhysObject>& Dynamics);
 	
 	friend class AAdvPhysScene;
+	friend class PhysSimulator;
 };

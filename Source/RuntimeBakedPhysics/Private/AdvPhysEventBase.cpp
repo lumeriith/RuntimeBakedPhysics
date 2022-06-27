@@ -39,7 +39,10 @@ void AAdvPhysEventBase::Tick(float DeltaTime)
 	Super::Tick(DeltaTime);
 }
 
-std::any AAdvPhysEventBase::GetEvent()
+void AAdvPhysEventBase::DoEventPhysX(std::vector<physx::PxRigidDynamic*>& Bodies)
 {
-	return nullptr;
+}
+
+void AAdvPhysEventBase::DoEventUE(TArray<FPhysObject>& Dynamics)
+{
 }

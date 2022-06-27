@@ -26,8 +26,7 @@ public:
 
 	// Events
 	void ReserveEvents(int FrameCount);
-	void AddEvents(TArray<std::tuple<float, std::any>>& Pairs, float Interval, int FrameCount);
-	void AddEvent(float Time, std::any Event, float Interval, int FrameCount);
+	void AddEvent(float Time, AAdvPhysEventBase* Event, float Interval, int FrameCount);
 	void FreeEvents();
 
 	// Scene-Related
@@ -44,7 +43,6 @@ public:
 protected:
 	void RecordInternal();
 	void HandleEventsInternal(int Frame);
-	void HandleExplosionEventInternal(FPhysEvent_Explosion&& Explosion);
 	
 	void CreateSceneInternal();
 

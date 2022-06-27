@@ -100,7 +100,7 @@ void AAdvPhysScene::Record(const float Interval, const int FrameCount)
 	RecordData = {};
 	CopyObjectsToSimulator();
 	Simulator.ReserveEvents(FrameCount);
-	Simulator.AddEvents(EventPairs, Interval, FrameCount);
+
 	for (const auto& Actor : EventActors)
 	{
 		if (!Actor)
@@ -108,7 +108,7 @@ void AAdvPhysScene::Record(const float Interval, const int FrameCount)
 			FMessageLog("AdvPhysScene").Error(FText::FromString("EventActors array contains invalid item"));
 			continue;
 		}
-		Simulator.AddEvent(Actor->Time, Actor->GetEvent(), Interval, FrameCount);
+		Simulator.AddEvent(Actor->Time, Actor, Interval, FrameCount);
 	}
 	Simulator.StartRecord(&RecordData, Interval, FrameCount, GetWorld()->GetGravityZ());
 	RecordStartTime = FPlatformTime::Seconds();
@@ -143,6 +143,16 @@ void AAdvPhysScene::Play()
 	PlayFrame(0.0f);
 }
 
+void AAdvPhysScene::PlayRealtimeSimulation()
+{
+	Cancel();
+	UnfreezeDynamicObjects();
+	Status.Current = PlayingRealtimeSimulation;
+	Status.PlayStartTime = GetWorld()->GetTimeSeconds();
+	Status.PlayLastFrameTime = -1.0f;
+	Status.PlayEventActors = EventActors;
+}
+
 void AAdvPhysScene::Cancel()
 {
 	ResetPhysObjectsPosition();
@@ -171,6 +181,11 @@ void AAdvPhysScene::UnfreezeDynamicObjects()
 	{
 		Obj.Comp->SetSimulatePhysics(true);
 	}
+}
+
+void AAdvPhysScene::SetPlayFramesPerSecond(float FPS)
+{
+	PlayFramesPerSecond = FPS;
 }
 
 EAction AAdvPhysScene::GetAction() const
@@ -247,9 +262,11 @@ void AAdvPhysScene::PlayFrame(float Time)
 	}
 }
 
-void AAdvPhysScene::BroadcastEventsToActorsFrame(float Time)
+void AAdvPhysScene::HandleEventsInFrame(float Time, bool ApplyEventsToRealWorld)
 {
-	if (Time > GetDuration())
+	// This is only called when playing recorded bake data.
+	// Because playing via Realtime Simulation does not specify its duration -> hence duration unknown. 
+	if (!ApplyEventsToRealWorld && Time > GetDuration())
 	{
 		for (const auto& Actor : Status.PlayEventActors)
 		{
@@ -261,8 +278,13 @@ void AAdvPhysScene::BroadcastEventsToActorsFrame(float Time)
 
 	for (int i = Status.PlayEventActors.Num() - 1; i >= 0; i--)
 	{
-		if (Status.PlayEventActors[i]->Time > Time) continue;
-		Status.PlayEventActors[i]->BroadcastOnTrigger();
+		const auto& E = Status.PlayEventActors[i];
+		if (E->Time > Time) continue;
+		E->BroadcastOnTrigger();
+		if (ApplyEventsToRealWorld)
+		{
+			E->DoEventUE(DynamicObjEntries);
+		}
 		Status.PlayEventActors.RemoveAt(i);
 	}
 }
@@ -314,16 +336,6 @@ void AAdvPhysScene::AddTaggedObjects()
 	));
 }
 
-void AAdvPhysScene::AddEvent(float Time, std::any Event)
-{
-	EventPairs.Add(std::make_tuple(Time, Event));
-}
-
-void AAdvPhysScene::ClearEvents()
-{
-	EventPairs.Empty();
-}
-
 // Called every frame
 void AAdvPhysScene::Tick(float DeltaTime)
 {
@@ -337,6 +349,9 @@ void AAdvPhysScene::Tick(float DeltaTime)
 		break;
 	case Playing:
 		DoPlayTick();
+		break;
+	case PlayingRealtimeSimulation:
+		DoPlayRealtimeSimulationTick();
 		break;
 	default:;
 	}
@@ -385,12 +400,20 @@ void AAdvPhysScene::DoPlayTick()
 	
 	const float CurrentTime = Now - Status.PlayStartTime;
 	PlayFrame(CurrentTime);
-	BroadcastEventsToActorsFrame(CurrentTime);
+	HandleEventsInFrame(CurrentTime, false);
 	Status.PlayLastFrameTime = Now;
 	if (CurrentTime > GetDuration())
 	{
 		FMessageLog("AdvPhysScene").Info(FText::FromString("Playing finished."));
 		Status = {};
 	}
+}
+
+void AAdvPhysScene::DoPlayRealtimeSimulationTick()
+{
+	const float Now = GetWorld()->GetTimeSeconds();
+	const float CurrentTime = Now - Status.PlayStartTime;
+	HandleEventsInFrame(CurrentTime, true);
+	Status.PlayLastFrameTime = Now;
 }
 

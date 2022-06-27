@@ -1,4 +1,6 @@
 ﻿#pragma once
+#include "ThirdParty/PhysX3/PhysX_3.4/Include/PxPhysics.h"
+#include "ThirdParty/PhysX3/PhysX_3.4/Include/PxPhysicsAPI.h"
 #include <PxPlane.h>
 #include <PxQuat.h>
 #include <PxVec3.h>
