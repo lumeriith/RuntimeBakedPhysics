@@ -1,5 +1,7 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 #include "PhysSimulator.h"
+
+#include "AdvPhysHashHelper.h"
 #include "AdvPhysScene.h"
 #include "PtouConversions.h"
 
@@ -209,6 +211,13 @@ void PhysSimulator::StartRecord(
 	RecordData->ObjLocRot.Empty();
 	RecordData->ObjLocRot.Reserve(FrameCount * ObservedBodies.size());
 	RecordData->ObjLocRot.AddZeroed(FrameCount * ObservedBodies.size());
+
+	if (RecordData->bEnableSOD)
+	{
+		RecordData->ObjSOD.Empty();
+		RecordData->ObjSOD.Reserve(FrameCount * ObservedBodies.size());
+		RecordData->ObjSOD.AddZeroed(FrameCount * ObservedBodies.size());
+	}
 	
 	bWantsToStop = false;
 	RecordThread = std::thread(&PhysSimulator::RecordInternal, this);
@@ -257,6 +266,24 @@ void PhysSimulator::RecordInternal()
 			const auto& Pose = ObservedBodies[j]->getGlobalPose();
 			Frame.Location = P2UVector(Pose.p);
 			Frame.Rotation = UE::Math::TRotator(P2UQuat(Pose.q));
+		}
+
+		if (RecordData->bEnableSOD)
+		{
+			for (int j = 0; j < ObservedBodies.size(); j++)
+			{
+				auto& Frame = RecordData->ObjSOD[i * ObservedBodies.size() + j];
+				const auto Bounds = ObservedBodies[j]->getWorldBounds();
+				AdvPhysHashHelper::GetHash(
+					Bounds,
+					RecordData->HashWorldCenter,
+					RecordData->HashCellSize,
+					Frame.StartHash,
+					Frame.EndHash
+					);
+				Frame.BoundsMin = P2UVector(Bounds.minimum);
+				Frame.BoundsMax = P2UVector(Bounds.maximum);
+			}
 		}
 		RecordData->Progress = static_cast<float>(i + 1) / RecordData->FrameCount;
 	}

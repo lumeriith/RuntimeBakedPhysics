@@ -98,6 +98,10 @@ void AAdvPhysScene::Record(const float Interval, const int FrameCount)
 	Cancel();
 	Status.Current = Recording;
 	RecordData = {};
+	RecordData.bEnableSOD = bEnableSOD;
+	RecordData.HashWorldCenter = GetActorLocation();
+	RecordData.HashCellSize = SODHashCellSize;
+	
 	CopyObjectsToSimulator();
 	Simulator.ReserveEvents(FrameCount);
 
@@ -186,6 +190,12 @@ void AAdvPhysScene::UnfreezeDynamicObjects()
 void AAdvPhysScene::SetPlayFramesPerSecond(float FPS)
 {
 	PlayFramesPerSecond = FPS;
+}
+
+void AAdvPhysScene::ConfigureSimulateOnDemand(const bool bEnabled, const float HashCellSize)
+{
+	bEnableSOD = bEnabled;
+	SODHashCellSize = HashCellSize;
 }
 
 EAction AAdvPhysScene::GetAction() const

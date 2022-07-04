@@ -61,7 +61,10 @@ public:
 
 	UFUNCTION(BlueprintCallable)
 		void SetPlayFramesPerSecond(float FPS);
-
+	
+	UFUNCTION(BlueprintCallable)
+		void ConfigureSimulateOnDemand(const bool bEnabled, const float HashCellSize);
+	
 	UFUNCTION(BlueprintCallable)
 		EAction GetAction() const;
 
@@ -79,7 +82,7 @@ public:
 
 	UFUNCTION(BlueprintCallable)
 		bool GetRecordDataFinished() const;
-	
+
 	virtual void Tick(float DeltaTime) override;
 
 	UPROPERTY(EditAnywhere)
@@ -102,6 +105,12 @@ public:
 
 	UPROPERTY(EditAnywhere)
 	TArray<AAdvPhysEventBase*> EventActors;
+
+	UPROPERTY(EditAnywhere)
+	bool bEnableSOD = false;
+
+	UPROPERTY(EditAnywhere)
+	float SODHashCellSize = 100.0f;
 
 	FRecordFinishedDeleagte RecordFinished;
 

@@ -28,6 +28,14 @@ struct FPhysObjLocRot
 	FRotator Rotation;
 };
 
+struct FPhysObjSODData
+{
+	FVector BoundsMin;
+	FVector BoundsMax;
+	uint32 StartHash;
+	uint32 EndHash;
+};
+
 USTRUCT(BlueprintType)
 struct FPhysRecordData
 {
@@ -44,6 +52,16 @@ struct FPhysRecordData
 
 	UPROPERTY(BlueprintReadOnly)
 	float FrameInterval;
+
+	UPROPERTY(BlueprintReadOnly)
+	bool bEnableSOD;
+
+	UPROPERTY(BlueprintReadOnly)
+	FVector HashWorldCenter;
+
+	UPROPERTY(BlueprintReadOnly)
+	float HashCellSize;
 	
 	TArray<FPhysObjLocRot> ObjLocRot;
+	TArray<FPhysObjSODData> ObjSOD;
 };
