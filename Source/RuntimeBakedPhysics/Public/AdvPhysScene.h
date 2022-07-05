@@ -8,7 +8,9 @@
 #include "PhysSimulator.h"
 #include "Engine/StaticMeshActor.h"
 #include "GameFramework/Actor.h"
+#include <hash_map>
 #include "AdvPhysScene.generated.h"
+
 
 UENUM(BlueprintType)
 enum EAction
@@ -23,8 +25,12 @@ struct FStatus
 {
 	EAction Current;
 	float PlayStartTime;
-	float PlayLastFrameTime;
+	float LastPlayFrameTime;
+	float LastSODCheckTime;
 	TArray<AAdvPhysEventBase*> PlayEventActors;
+	TArray<bool> SODActivationState;
+	TArray<USceneComponent*> AddedActivators;
+	std::hash_map<uint32, std::list<int>> SODMap;
 };
 
 DECLARE_MULTICAST_DELEGATE(FRecordFinishedDeleagte)
@@ -101,6 +107,9 @@ public:
 	FName StaticTag = FName("AdvPhysStatic");
 	
 	UPROPERTY(EditAnywhere)
+	FName ActivatorTag = FName("AdvPhysActivator");
+	
+	UPROPERTY(EditAnywhere)
 	bool bFreezeDynamicObjectOnAdd = true;
 
 	UPROPERTY(EditAnywhere)
@@ -108,9 +117,34 @@ public:
 
 	UPROPERTY(EditAnywhere)
 	bool bEnableSOD = false;
-
+	
 	UPROPERTY(EditAnywhere)
 	float SODHashCellSize = 100.0f;
+
+	UPROPERTY(EditAnywhere)
+	float SODCheckFramesPerSecond = -1;
+
+	UPROPERTY(EditAnywhere)
+	double SODOriginalActivatorBoundExpansion = 50;
+
+	UPROPERTY(EditAnywhere)
+	double SODAddedActivatorBoundExpansion = 0;
+	
+
+	UPROPERTY(EditAnywhere)
+	bool bUseNaiveSODCheck = false;
+	
+	UPROPERTY(EditAnywhere)
+	bool bEnableSODChainReaction = false;
+
+	UPROPERTY(EditAnywhere)
+	bool bDrawSODObjectBoundsOnPlay = false;
+
+	UPROPERTY(EditAnywhere)
+	bool bDrawSODHashCubesOnPlay = false;
+	
+	UPROPERTY(EditAnywhere)
+	bool bDrawSODActivatedObjectsOnPlay = false;
 
 	FRecordFinishedDeleagte RecordFinished;
 
@@ -128,16 +162,31 @@ protected:
 	void PlayFrame(float Time);
 	void HandleEventsInFrame(float Time, bool ApplyEventsToRealWorld);
 
+	void CheckSODAtTime(float Time);
+	bool CheckActivatorIntersect(const USceneComponent* Activator, const FPhysObjSODData& SODData, const bool bIsOriginal) const;
+	
+	void RebuildSODMap(int FrameIndex);
+	void CheckFromSODMap(const USceneComponent* Activator, const int FrameIndex, const bool bIsOriginal);
+	void SimulateObjectOnDemand(int ObjIndex, int FrameIndex);
+
 	void AddTaggedObjects();
 	void ResetPhysObjectsPosition();
 
 	void CopyObjectsToSimulator();
+
+	void DrawSODObjectBounds();
+	void DrawSODHashCubes();
+	void DrawSODActivatedObjects();
+	
 
 	PhysSimulator Simulator;
 	FStatus Status;
 	
 	TArray<FPhysObject> DynamicObjEntries;
 	TArray<FPhysObject> StaticObjEntries;
+
+	UPROPERTY()
+	TArray<USceneComponent*> OriginalActivators;
 	
 	FPhysRecordData RecordData;
 	double RecordStartTime;

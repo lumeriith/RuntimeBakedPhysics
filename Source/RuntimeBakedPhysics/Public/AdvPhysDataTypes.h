@@ -30,8 +30,7 @@ struct FPhysObjLocRot
 
 struct FPhysObjSODData
 {
-	FVector BoundsMin;
-	FVector BoundsMax;
+	FBox Bounds;
 	uint32 StartHash;
 	uint32 EndHash;
 };

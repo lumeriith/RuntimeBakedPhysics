@@ -281,8 +281,7 @@ void PhysSimulator::RecordInternal()
 					Frame.StartHash,
 					Frame.EndHash
 					);
-				Frame.BoundsMin = P2UVector(Bounds.minimum);
-				Frame.BoundsMax = P2UVector(Bounds.maximum);
+				Frame.Bounds = FBox(P2UVector(Bounds.minimum), P2UVector(Bounds.maximum));
 			}
 		}
 		RecordData->Progress = static_cast<float>(i + 1) / RecordData->FrameCount;
