@@ -7,11 +7,13 @@ struct FPhysObject
 {
 	explicit FPhysObject(UStaticMeshComponent* Comp) :
 		Comp(Comp),
+		CollisionProfile(Comp->GetCollisionProfileName()),
 		Location(Comp->GetComponentLocation()),
 		Rotation(Comp->GetComponentRotation())
 	{ }
 	
 	UStaticMeshComponent* Comp;
+	FName CollisionProfile;
 	FVector Location;
 	FRotator Rotation;
 };

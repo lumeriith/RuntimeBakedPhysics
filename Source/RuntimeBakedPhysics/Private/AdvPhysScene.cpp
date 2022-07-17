@@ -60,6 +60,7 @@ void AAdvPhysScene::ResetPhysObjectsPosition()
 	for (const auto& Obj : DynamicObjEntries)
 	{
 		Obj.Comp->SetWorldLocationAndRotation(Obj.Location, Obj.Rotation);
+		Obj.Comp->SetCollisionProfileName(Obj.CollisionProfile);
 	}
 }
 
@@ -222,6 +223,7 @@ void AAdvPhysScene::Play()
 	for (const auto& Obj : DynamicObjEntries)
 	{
 		Obj.Comp->SetSimulatePhysics(false);
+		Obj.Comp->SetCollisionProfileName(TEXT("OverlapAll"));
 	}
 	PlayFrame(0.0f);
 }
@@ -503,13 +505,16 @@ void AAdvPhysScene::SimulateObjectOnDemand(int ObjIndex, int FrameIndex)
 	const auto& Comp = DynamicObjEntries[ObjIndex].Comp;
 	
 	Comp->SetSimulatePhysics(true);
-	Comp->SetWorldLocationAndRotation(EndFrame.Location, EndFrame.Rotation, false, nullptr, ETeleportType::ResetPhysics);
+	Comp->SetCollisionProfileName(DynamicObjEntries[ObjIndex].CollisionProfile);
 	
+	Comp->SetWorldLocationAndRotation(StartFrame.Location, StartFrame.Rotation, false, nullptr, ETeleportType::ResetPhysics);
+	Comp->SetWorldLocationAndRotation(EndFrame.Location, EndFrame.Rotation, true, nullptr, ETeleportType::ResetPhysics);
+
 	const auto LinearVel = (EndFrame.Location - StartFrame.Location) / RecordData.FrameInterval;
 	const auto AngularVel = (EndFrame.Rotation - StartFrame.Rotation).Euler() / RecordData.FrameInterval;
 	Comp->SetPhysicsLinearVelocity(LinearVel);
 	Comp->SetPhysicsAngularVelocityInDegrees(AngularVel);
-
+	
 	if (bEnableSODChainReaction)
 	{
 		Status.AddedActivators.Add(Comp->GetAttachmentRoot());
