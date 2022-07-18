@@ -6,7 +6,6 @@
 #include "AdvPhysDataTypes.h"
 #include "AdvPhysEventBase.h"
 #include "PhysSimulator.h"
-#include "Engine/StaticMeshActor.h"
 #include "GameFramework/Actor.h"
 #include <hash_map>
 #include "AdvPhysScene.generated.h"
@@ -44,7 +43,7 @@ public:
 	AAdvPhysScene();
 	
 	UFUNCTION(BlueprintCallable)
-		void AddDynamicObject(UStaticMeshComponent* Component);
+		void AddDynamicObj(UStaticMeshComponent* Component);
 	UFUNCTION(BlueprintCallable)
 		void AddStaticObject(UStaticMeshComponent* Component);
 	
@@ -146,6 +145,12 @@ public:
 	UPROPERTY(EditAnywhere)
 	bool bDrawSODActivatedObjectsOnPlay = false;
 
+	UPROPERTY(EditAnywhere)
+	bool bUseSimpleGeometryForDynamicObj = false;
+	
+	UPROPERTY(EditAnywhere)
+	TEnumAsByte<EShapeType> StaticObjShapeType = TriMesh;
+	
 	FRecordFinishedDeleagte RecordFinished;
 
 protected:

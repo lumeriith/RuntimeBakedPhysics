@@ -32,7 +32,7 @@ public:
 	// Scene-Related
 	void ClearScene();
 	
-	void AddStaticBody(UStaticMeshComponent* Comp, bool bUseSimpleGeometry = false);
+	void AddStaticBody(UStaticMeshComponent* Comp, EShapeType Type);
 	void AddDynamicBody(UStaticMeshComponent* Comp, bool bUseSimpleGeometry = false);
 
 	void StartRecord(FPhysRecordData* Destination, float RecordInterval, int FrameCount, float GravityZ);
@@ -41,12 +41,13 @@ public:
 	bool IsInitialized() const;
 	bool IsRecording() const;
 protected:
+	
 	void RecordInternal();
 	void HandleEventsInternal(int Frame);
 	
 	void CreateSceneInternal();
 
-	void GetShapeInternal(const UStaticMeshComponent* Comp, bool bUseSimpleGeometry, PhysCompoundShape& OutShape);
+	void GetShapeInternal(const UStaticMeshComponent* Comp, EShapeType Type, PhysCompoundShape& OutShape);
 	std::shared_ptr<PxGeometry> GetSimpleGeometry(const UStaticMeshComponent* Comp) const;
 	PxConvexMesh* GetConvexMeshInternal(UStaticMesh* Mesh, int ConvexElemIndex);
 

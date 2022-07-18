@@ -6,6 +6,7 @@
 #include "PtouConversions.h"
 
 #include "PhysXPublicCore.h"
+#include "Chaos/TriangleMeshImplicitObject.h"
 #include "PhysicalMaterials/PhysicalMaterial.h"
 
 PhysSimulator::PhysSimulator(): RecordData(nullptr), Scene(nullptr), bIsInitialized(false), bIsRecording(false),
@@ -128,7 +129,7 @@ void PhysSimulator::ClearScene()
 	CreateSceneInternal();
 }
 
-void PhysSimulator::AddStaticBody(UStaticMeshComponent* Comp, bool bUseSimpleGeometry)
+void PhysSimulator::AddStaticBody(UStaticMeshComponent* Comp, EShapeType Type)
 {
 	if (!bIsInitialized)
 	{
@@ -139,7 +140,7 @@ void PhysSimulator::AddStaticBody(UStaticMeshComponent* Comp, bool bUseSimpleGeo
 	}
 	
 	PhysCompoundShape CompoundShape;
-	GetShapeInternal(Comp, bUseSimpleGeometry, CompoundShape);
+	GetShapeInternal(Comp, Type, CompoundShape);
 
 	const PxVec3 PLoc = U2PVector(Comp->GetComponentLocation());
 	const PxQuat PQuat = U2PQuat(Comp->GetComponentRotation().Quaternion());
@@ -166,7 +167,7 @@ void PhysSimulator::AddDynamicBody(UStaticMeshComponent* Comp, bool bUseSimpleGe
 	}
 	
 	PhysCompoundShape CompoundShape;
-	GetShapeInternal(Comp, bUseSimpleGeometry, CompoundShape);
+	GetShapeInternal(Comp, bUseSimpleGeometry ? Simple : Aggregate, CompoundShape);
 
 	const PxVec3 PLoc = U2PVector(Comp->GetComponentLocation());
 	const PxQuat PQuat = U2PQuat(Comp->GetComponentRotation().Quaternion());
@@ -317,7 +318,7 @@ void PhysSimulator::CreateSceneInternal()
 	}
 }
 
-void PhysSimulator::GetShapeInternal(const UStaticMeshComponent* Comp, bool bUseSimpleGeometry, PhysCompoundShape& OutShape)
+void PhysSimulator::GetShapeInternal(const UStaticMeshComponent* Comp, EShapeType Type, PhysCompoundShape& OutShape)
 {
 	const auto& UPhysMat = Comp->GetMaterial(0)->GetPhysicalMaterial();
 	const auto PMaterial = Physics->createMaterial(
@@ -326,25 +327,70 @@ void PhysSimulator::GetShapeInternal(const UStaticMeshComponent* Comp, bool bUse
 			UPhysMat->Restitution
 		);
 	
-	if (bUseSimpleGeometry)
+	if (Type == Simple)
 	{
 		const auto& PGeom = GetSimpleGeometry(Comp);
 		OutShape = PhysCompoundShape();
 		OutShape.Shapes.push_back(Physics->createShape(*PGeom, *PMaterial));
 		return;
 	}
-	
+
 	const auto UScale = Comp->GetComponentScale();
 	const auto PScale = U2PVector(UScale);
+	
+	if (Type == TriMesh)
+	{
+		auto& TriMeshes = Comp->GetStaticMesh()->GetBodySetup()->ChaosTriMeshes;
+		for (auto& Mesh : TriMeshes)
+		{
+			PxTriangleMeshDesc MeshDesc;
+			
+			const auto& UVerts = Mesh->Particles().AllX();
+			const auto& Indices = Mesh->Elements().GetSmallIndexBuffer();
+			
+			std::vector<PxVec3> PVerts;
+			PVerts.reserve(UVerts.Num());
+			for (const auto Vert : UVerts)
+			{
+				PVerts.push_back(PxVec3(Vert[0], Vert[1], Vert[2]));
+			}
+
+			std::vector<PxU32> PIndices;
+			PIndices.reserve(Indices.Num() * 3);
+			for (const auto Tri : Indices)
+			{
+				PIndices.push_back(Tri[0]);
+				PIndices.push_back(Tri[1]);
+				PIndices.push_back(Tri[2]);
+			}
+			
+			MeshDesc.points.count = PVerts.size();
+			MeshDesc.points.stride = sizeof(PxVec3);
+			MeshDesc.points.data = PVerts.data();
+
+			MeshDesc.triangles.count = PIndices.size() / 3;
+			MeshDesc.triangles.stride = 3*sizeof(PxU32);
+			MeshDesc.triangles.data = PIndices.data();
+
+			const auto TriMesh = Cooking->createTriangleMesh(MeshDesc, Physics->getPhysicsInsertionCallback());
+			PxTriangleMeshGeometry TriGeom;
+			TriGeom.triangleMesh = TriMesh;
+			TriGeom.scale = PxMeshScale(PScale);
+			const auto NewShape = Physics->createShape(TriGeom, *PMaterial);
+			OutShape.Shapes.push_back(NewShape);
+		}
+		return;
+	}
+	
 	const auto& AggGeom = Comp->GetStaticMesh()->GetBodySetup()->AggGeom;
-		
-	OutShape = PhysCompoundShape();
-	OutShape.Shapes.reserve(
-		AggGeom.BoxElems.Num() +
+	const auto NumOfAgg = AggGeom.BoxElems.Num() +
 		AggGeom.ConvexElems.Num() +
 		AggGeom.SphereElems.Num() +
 		AggGeom.SphylElems.Num() +
-		AggGeom.TaperedCapsuleElems.Num());
+		AggGeom.TaperedCapsuleElems.Num();
+	
+	OutShape = PhysCompoundShape();
+	OutShape.Shapes.reserve(NumOfAgg);
 		
 	for (auto& Box : AggGeom.BoxElems)
 	{
@@ -362,12 +408,12 @@ void PhysSimulator::GetShapeInternal(const UStaticMeshComponent* Comp, bool bUse
 	for (int i = 0; i < AggGeom.ConvexElems.Num(); i++)
 	{
 		const auto PMesh = GetConvexMeshInternal(Comp->GetStaticMesh(), i);
+		if (PMesh == nullptr) continue;
 		PxConvexMeshGeometry PGeom(PMesh, PxMeshScale(PScale));
 		PxTransform PTransform = U2PTransform(AggGeom.ConvexElems[i].GetTransform());
 		PTransform.p.x *= UScale.X;
 		PTransform.p.y *= UScale.Y;
 		PTransform.p.z *= UScale.Z;
-		
 		const auto NewShape = Physics->createShape(PGeom, *PMaterial);
 		NewShape->setLocalPose(PTransform);
 		OutShape.Shapes.push_back(NewShape);
@@ -404,13 +450,23 @@ void PhysSimulator::GetShapeInternal(const UStaticMeshComponent* Comp, bool bUse
 	{
 		// TODO
 	}
+
+	if (OutShape.Shapes.size() > 0) return;
+	// Use render vertices for fallback collision convex mesh generation
+
+	const auto PMesh = GetConvexMeshInternal(Comp->GetStaticMesh(), -1);
+	if (PMesh == nullptr) return;
+	PxConvexMeshGeometry PGeom(PMesh, PxMeshScale(PScale));
+		
+	const auto NewShape = Physics->createShape(PGeom, *PMaterial);
+	OutShape.Shapes.push_back(NewShape);
 }
 
 std::shared_ptr<PxGeometry> PhysSimulator::GetSimpleGeometry(const UStaticMeshComponent* Comp) const
 {
 	// Use ColShape to generate simple geometry regardless of Collision Body used by component
 	const auto UColShape = Comp->GetCollisionShape();
-		
+	
 	switch (UColShape.ShapeType)
 	{
 	case ECollisionShape::Line:
@@ -436,39 +492,54 @@ PxConvexMesh* PhysSimulator::GetConvexMeshInternal(UStaticMesh* Mesh, int Convex
 
 	if (ConvexMeshes.count(Id))
 		return ConvexMeshes[Id];
-	
-	const auto& Convex = Mesh->GetBodySetup()->AggGeom.ConvexElems[ConvexElemIndex];
 
-	TSet<int> UsedIndices;
-	for (int i = 0; i < Convex.IndexData.Num(); i++)
-	{
-		UsedIndices.Add(Convex.IndexData[i]);
-	}
-	
 	std::vector<PxVec3> PVerts;
 	
-	PVerts.resize(UsedIndices.Num());
-	int Cursor = 0;
-	for (const int Index : UsedIndices)
+	if (ConvexElemIndex == -1)
 	{
-		PVerts[Cursor] = U2PVector(Convex.VertexData[Index]);
-		Cursor++;
+		const auto& VBuffer = Mesh->GetRenderData()->LODResources[0].VertexBuffers.PositionVertexBuffer;
+		if (!VBuffer.GetAllowCPUAccess()) return nullptr;
+		PVerts.reserve(VBuffer.GetNumVertices());
+		for (unsigned i = 0u; i < VBuffer.GetNumVertices(); i++)
+		{
+			const auto Pos = VBuffer.VertexPosition(i);
+			PVerts.push_back(PxVec3(Pos.X, Pos.Y, Pos.Z));
+		}
 	}
-			
+	else
+	{
+		const auto& Convex = Mesh->GetBodySetup()->AggGeom.ConvexElems[ConvexElemIndex];
+
+		TSet<int> UsedIndices;
+		for (int i = 0; i < Convex.IndexData.Num(); i++)
+		{
+			UsedIndices.Add(Convex.IndexData[i]);
+		}
+	
+		PVerts.resize(UsedIndices.Num());
+		int Cursor = 0;
+		for (const int Index : UsedIndices)
+		{
+			PVerts[Cursor] = U2PVector(Convex.VertexData[Index]);
+			Cursor++;
+		}
+	}
+	
 	PxConvexMeshDesc convexDesc;
 	convexDesc.points.count     = PVerts.size();
 	convexDesc.points.stride    = sizeof(PxVec3);
 	convexDesc.points.data      = PVerts.data();
-	convexDesc.flags            = PxConvexFlag::eCOMPUTE_CONVEX | PxConvexFlag::eCHECK_ZERO_AREA_TRIANGLES | PxConvexFlag::eQUANTIZE_INPUT;
+	convexDesc.flags            = PxConvexFlag::eCOMPUTE_CONVEX |
+		PxConvexFlag::eCHECK_ZERO_AREA_TRIANGLES |
+			PxConvexFlag::eQUANTIZE_INPUT |
+				PxConvexFlag::eDISABLE_MESH_VALIDATION | 
+					PxConvexFlag::eFAST_INERTIA_COMPUTATION;
 	convexDesc.vertexLimit		= 40;
-			
-	// mesh should be validated before cooking without the mesh cleaning
-	// Remove on release build?
-	bool res = Cooking->validateConvexMesh(convexDesc);
-	PX_ASSERT(res);
-
+	
 	const auto ConvexMesh = Cooking->createConvexMesh(convexDesc,
 		Physics->getPhysicsInsertionCallback());
+	if (ConvexMesh == nullptr)
+		return nullptr;
 	ConvexMeshes[Id] = ConvexMesh;
 	return ConvexMesh;
 }

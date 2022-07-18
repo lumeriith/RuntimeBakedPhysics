@@ -10,7 +10,7 @@ public class RuntimeBakedPhysics : ModuleRules
 	
 		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore" });
 
-		PrivateDependencyModuleNames.AddRange(new string[] { "PhysX" });
+		PrivateDependencyModuleNames.AddRange(new string[] { "PhysX", "Chaos", "GeometryCollectionEngine" });
 
 		// Uncomment if you are using Slate UI
 		// PrivateDependencyModuleNames.AddRange(new string[] { "Slate", "SlateCore" });

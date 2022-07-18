@@ -13,7 +13,7 @@ AAdvPhysScene::AAdvPhysScene()
 	PrimaryActorTick.bCanEverTick = true;
 }
 
-void AAdvPhysScene::AddDynamicObject(UStaticMeshComponent* Component)
+void AAdvPhysScene::AddDynamicObj(UStaticMeshComponent* Component)
 {
 	if (!Component)
 	{
@@ -69,12 +69,12 @@ void AAdvPhysScene::CopyObjectsToSimulator()
 	const double StartSeconds = FPlatformTime::Seconds();
 	for (const auto& Obj : DynamicObjEntries)
 	{
-		Simulator.AddDynamicBody(Obj.Comp);
+		Simulator.AddDynamicBody(Obj.Comp, bUseSimpleGeometryForDynamicObj);
 	}
 
 	for (const auto& Obj : StaticObjEntries)
 	{
-		Simulator.AddStaticBody(Obj.Comp);
+		Simulator.AddStaticBody(Obj.Comp, StaticObjShapeType);
 	}
 	const double Now = FPlatformTime::Seconds();
 
@@ -523,7 +523,7 @@ void AAdvPhysScene::SimulateObjectOnDemand(int ObjIndex, int FrameIndex)
 
 void AAdvPhysScene::AddTaggedObjects()
 {
-	int NumOfDynActors = 0, NumOfStaticActors = 0, NumOfDynComps = 0, NumOfStaticComps = 0, NumOfActivators = 0;
+	int NumOfDynActors = 0, NumOfStaticActors = 0, NumOfDynComps = 0, NumOfStaticComps = 0, NumOfActivators = 0, NumOfGeom = 0;
 	const double StartSeconds = FPlatformTime::Seconds();
 	
 	TArray<AActor*> Actors;
@@ -537,8 +537,9 @@ void AAdvPhysScene::AddTaggedObjects()
 		for (const auto& Comp : Comps)
 		{
 			NumOfDynComps++;
-			AddDynamicObject(Comp);
+			AddDynamicObj(Comp);
 		}
+		Comps.Empty();
 	}
 		
 	Actors.Empty();
@@ -567,10 +568,11 @@ void AAdvPhysScene::AddTaggedObjects()
 	
 	FMessageLog("AdvPhysScene").Info(
 		FText::Format(
-			FText::FromString("AddTaggedObjects took {0}ms, Added dynamic: {1}/{2}, static: {3}/{4} (Actors/Components), activators: {5}"),
+			FText::FromString("AddTaggedObjects took {0}ms, Added dynamic: {1} actors {2} static mesh components {3} geometry collections, static: {4} actors {5} static mesh components, activators: {6}"),
 			(Now - StartSeconds) * 1000,
 			NumOfDynActors,
 			NumOfDynComps,
+			NumOfGeom,
 			NumOfStaticActors,
 			NumOfStaticComps,
 			NumOfActivators

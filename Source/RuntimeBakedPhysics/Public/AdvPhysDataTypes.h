@@ -1,7 +1,16 @@
 ﻿#pragma once
+#include "GeometryCollection/GeometryCollectionComponent.h"
 #include "AdvPhysDataTypes.generated.h"
 
 class AAdvPhysEventBase;
+
+UENUM()
+enum EShapeType
+{
+	Simple,
+	Aggregate,
+	TriMesh
+};
 
 struct FPhysObject
 {
@@ -16,6 +25,15 @@ struct FPhysObject
 	FName CollisionProfile;
 	FVector Location;
 	FRotator Rotation;
+};
+
+struct FPhysGeomCollection
+{
+	explicit FPhysGeomCollection(UGeometryCollectionComponent* Comp) :
+		Comp(Comp)
+	{ }
+
+	UGeometryCollectionComponent* Comp;
 };
 
 struct FPhysEventNode
