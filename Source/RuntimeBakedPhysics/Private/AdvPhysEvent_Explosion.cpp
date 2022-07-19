@@ -35,6 +35,7 @@ void AAdvPhysEvent_Explosion::DoEventPhysX(std::vector<PxRigidDynamic*>& Bodies)
 			Multiplier *= 1.0f - (FPlatformMath::Sqrt(SqrDist) - FallOffMinDistance) / MinMaxDiff;
 				
 		PxVec3 ImpulseVec = Dir * Multiplier;
+		Body->setRigidBodyFlag(PxRigidBodyFlag::eKINEMATIC, false);
 		PxRigidBodyExt::addForceAtPos(*Body, ImpulseVec, ExplosionPos, PxForceMode::eIMPULSE);
 	}
 }

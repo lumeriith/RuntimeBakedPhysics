@@ -8,6 +8,8 @@
 #include "PhysSimulator.h"
 #include "GameFramework/Actor.h"
 #include <hash_map>
+
+#include "AdvPhysSceneController.h"
 #include "AdvPhysScene.generated.h"
 
 
@@ -77,6 +79,9 @@ public:
 		float GetRecordProgress() const;
 
 	UFUNCTION(BlueprintCallable)
+		int GetNumOfActivators() const;
+	
+	UFUNCTION(BlueprintCallable)
 		float GetPlayFramesPerSecond() const;
 
 	UFUNCTION(BlueprintCallable)
@@ -87,6 +92,15 @@ public:
 
 	UFUNCTION(BlueprintCallable)
 		bool GetRecordDataFinished() const;
+
+	UFUNCTION(BlueprintCallable)
+		bool GetEnableSOD() const;
+
+	UFUNCTION(BlueprintCallable)
+		void SetEnableSOD(bool bEnable);
+
+	UFUNCTION(BlueprintCallable)
+		void SetNaiveSODCheck(bool bNaive);
 
 	virtual void Tick(float DeltaTime) override;
 
@@ -113,6 +127,9 @@ public:
 
 	UPROPERTY(EditAnywhere)
 	TArray<AAdvPhysEventBase*> EventActors;
+	
+	UPROPERTY(EditAnywhere)
+	AAdvPhysSceneController* Controller;
 
 	UPROPERTY(EditAnywhere)
 	bool bEnableSOD = false;
@@ -150,6 +167,9 @@ public:
 	
 	UPROPERTY(EditAnywhere)
 	TEnumAsByte<EShapeType> StaticObjShapeType = TriMesh;
+
+	TArray<FPhysObject> DynamicObjEntries;
+	TArray<FPhysObject> StaticObjEntries;
 	
 	FRecordFinishedDeleagte RecordFinished;
 
@@ -186,9 +206,6 @@ protected:
 
 	PhysSimulator Simulator;
 	FStatus Status;
-	
-	TArray<FPhysObject> DynamicObjEntries;
-	TArray<FPhysObject> StaticObjEntries;
 
 	UPROPERTY()
 	TArray<USceneComponent*> OriginalActivators;

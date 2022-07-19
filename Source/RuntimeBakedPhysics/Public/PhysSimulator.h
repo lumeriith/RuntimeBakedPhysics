@@ -4,6 +4,7 @@
 
 #include <thread>
 #include "AdvPhysDataTypes.h"
+#include "AdvPhysSceneController.h"
 
 #include "ThirdParty/PhysX3/PhysX_3.4/Include/PxPhysics.h"
 #include "ThirdParty/PhysX3/PhysX_3.4/Include/PxPhysicsAPI.h"
@@ -40,20 +41,9 @@ public:
 	// Others
 	bool IsInitialized() const;
 	bool IsRecording() const;
-protected:
 	
-	void RecordInternal();
-	void HandleEventsInternal(int Frame);
-	
-	void CreateSceneInternal();
+	class AAdvPhysSceneController* Controller;
 
-	void GetShapeInternal(const UStaticMeshComponent* Comp, EShapeType Type, PhysCompoundShape& OutShape);
-	std::shared_ptr<PxGeometry> GetSimpleGeometry(const UStaticMeshComponent* Comp) const;
-	PxConvexMesh* GetConvexMeshInternal(UStaticMesh* Mesh, int ConvexElemIndex);
-
-	FPhysRecordData* RecordData;
-
-	inline static int StaticRefCount = 0;
 	inline static PxDefaultAllocator		Allocator;
 	inline static PxDefaultErrorCallback	ErrorCallback;
 
@@ -63,16 +53,30 @@ protected:
 	inline static PxDefaultCpuDispatcher*	Dispatcher;
 	inline static PxPvd*						Pvd;
 	inline static PxCooking*				Cooking;
-	
+
 	PxScene* Scene;
+
+	std::unordered_map<uint64, PxConvexMesh*> ConvexMeshes;
+	std::vector<PxRigidDynamic*> ObservedBodies;
+
+	std::vector<std::shared_ptr<FPhysEventNode>> Events;
+
+	FPhysRecordData* RecordData;
+	
+protected:
+	void RecordInternal();
+	void HandleEventsInternal(int Frame);
+	
+	void CreateSceneInternal();
+
+	void GetShapeInternal(const UStaticMeshComponent* Comp, EShapeType Type, PhysCompoundShape& OutShape);
+	std::shared_ptr<PxGeometry> GetSimpleGeometry(const UStaticMeshComponent* Comp) const;
+	PxConvexMesh* GetConvexMeshInternal(UStaticMesh* Mesh, int ConvexElemIndex);
+	
+	inline static int StaticRefCount = 0;
 	
 	bool bIsInitialized;
 	bool bIsRecording;
 	bool bWantsToStop;
 	std::thread RecordThread;
-	
-	std::unordered_map<uint64, PxConvexMesh*> ConvexMeshes;
-	std::vector<PxRigidDynamic*> ObservedBodies;
-
-	std::vector<std::shared_ptr<FPhysEventNode>> Events;
 };

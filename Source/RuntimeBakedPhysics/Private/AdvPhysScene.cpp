@@ -106,6 +106,18 @@ void AAdvPhysScene::DrawSODObjectBounds()
 		const auto BoundsExtent = Frame.Bounds.GetExtent();
 		DrawDebugBox(GetWorld(), BoundsCenter, BoundsExtent, FColor::Green, false, 0);
 	}
+
+	for (int i = 0; i < OriginalActivators.Num(); i++)
+	{
+		const auto& Bounds = OriginalActivators[i]->Bounds.GetBox();
+		DrawDebugBox(GetWorld(), Bounds.GetCenter(), Bounds.GetExtent(), FColor::Purple, false, 0);
+	}
+
+	for (int i = 0; i < Status.AddedActivators.Num(); i++)
+	{
+		const auto& Bounds = Status.AddedActivators[i]->Bounds.GetBox();
+		DrawDebugBox(GetWorld(), Bounds.GetCenter(), Bounds.GetExtent(), FColor::Orange, false, 0);
+	}
 }
 
 void AAdvPhysScene::DrawSODHashCubes()
@@ -188,6 +200,7 @@ void AAdvPhysScene::Record(const float Interval, const int FrameCount)
 		}
 		Simulator.AddEvent(Actor->Time, Actor, Interval, FrameCount);
 	}
+	Simulator.Controller = Controller;
 	Simulator.StartRecord(&RecordData, Interval, FrameCount, GetWorld()->GetGravityZ());
 	RecordStartTime = FPlatformTime::Seconds();
 }
@@ -226,6 +239,8 @@ void AAdvPhysScene::Play()
 		Obj.Comp->SetCollisionProfileName(TEXT("OverlapAll"));
 	}
 	PlayFrame(0.0f);
+
+	if (Controller) Controller->BeginPlayScene(this);
 }
 
 void AAdvPhysScene::PlayRealtimeSimulation()
@@ -289,6 +304,11 @@ float AAdvPhysScene::GetRecordProgress() const
 	return RecordData.Progress;
 }
 
+int AAdvPhysScene::GetNumOfActivators() const
+{
+	return OriginalActivators.Num() + Status.AddedActivators.Num();
+}
+
 float AAdvPhysScene::GetPlayFramesPerSecond() const
 {
 	return PlayFramesPerSecond;
@@ -307,6 +327,21 @@ float AAdvPhysScene::GetRecordDataFrameInterval() const
 bool AAdvPhysScene::GetRecordDataFinished() const
 {
 	return RecordData.Finished;
+}
+
+bool AAdvPhysScene::GetEnableSOD() const
+{
+	return bEnableSOD;
+}
+
+void AAdvPhysScene::SetEnableSOD(bool bEnable)
+{
+	bEnableSOD = bEnable;
+}
+
+void AAdvPhysScene::SetNaiveSODCheck(bool bNaive)
+{
+	bUseNaiveSODCheck = bNaive;
 }
 
 float AAdvPhysScene::GetDuration() const
@@ -455,8 +490,9 @@ void AAdvPhysScene::RebuildSODMap(int FrameIndex)
 				FindIter->second.push_back(i);
 				return;
 			}
-			Map.insert(std::hash_map<uint32, std::list<int>>::value_type(Hash, std::list<int>()));
-			
+			std::list<int> NewList;
+			NewList.push_back(i);
+			Map.insert(std::hash_map<uint32, std::list<int>>::value_type(Hash, std::move(NewList)));
 		};
 		AdvPhysHashHelper::CubicSweepHash(SODData.StartHash, SODData.EndHash, UpdateMap);
 	}
@@ -519,6 +555,8 @@ void AAdvPhysScene::SimulateObjectOnDemand(int ObjIndex, int FrameIndex)
 	{
 		Status.AddedActivators.Add(Comp->GetAttachmentRoot());
 	}
+
+	if (Controller) Controller->DidStartSimulateOnDemand(this, ObjIndex, FrameIndex);
 }
 
 void AAdvPhysScene::AddTaggedObjects()
@@ -647,7 +685,7 @@ void AAdvPhysScene::DoPlayTick()
 {
 	const float Now = GetWorld()->GetTimeSeconds();
 	const float CurrentTime = Now - Status.PlayStartTime;
-	if (RecordData.bEnableSOD && (SODCheckFramesPerSecond <= 0 || Now - Status.LastSODCheckTime >= 1.0f / SODCheckFramesPerSecond))
+	if (RecordData.bEnableSOD && bEnableSOD && (SODCheckFramesPerSecond <= 0 || Now - Status.LastSODCheckTime >= 1.0f / SODCheckFramesPerSecond))
 	{
 		CheckSODAtTime(CurrentTime);
 		Status.LastSODCheckTime = Now;

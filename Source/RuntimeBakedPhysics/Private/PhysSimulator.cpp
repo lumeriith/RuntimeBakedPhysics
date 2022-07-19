@@ -249,6 +249,7 @@ bool PhysSimulator::IsRecording() const
 
 void PhysSimulator::RecordInternal()
 {
+	if (Controller) Controller->BeginRecordScene(this);
 	for (int i = 0; i < RecordData->FrameCount; i++)
 	{
 		if (bWantsToStop)
@@ -258,6 +259,7 @@ void PhysSimulator::RecordInternal()
 		}
 
 		HandleEventsInternal(i);
+		if (Controller) Controller->RecordSceneTick(this, i);
 		
 		Scene->simulate(RecordData->FrameInterval);
 		Scene->fetchResults(true);
@@ -287,6 +289,7 @@ void PhysSimulator::RecordInternal()
 		}
 		RecordData->Progress = static_cast<float>(i + 1) / RecordData->FrameCount;
 	}
+	if (Controller) Controller->EndRecordScene(this);
 	RecordData->Finished = true;
 	bIsRecording = false;
 }
@@ -320,7 +323,7 @@ void PhysSimulator::CreateSceneInternal()
 
 void PhysSimulator::GetShapeInternal(const UStaticMeshComponent* Comp, EShapeType Type, PhysCompoundShape& OutShape)
 {
-	const auto& UPhysMat = Comp->GetMaterial(0)->GetPhysicalMaterial();
+	const auto& UPhysMat = Comp->GetStaticMesh()->GetBodySetup()->GetPhysMaterial();
 	const auto PMaterial = Physics->createMaterial(
 			UPhysMat->StaticFriction,
 			UPhysMat->Friction,
