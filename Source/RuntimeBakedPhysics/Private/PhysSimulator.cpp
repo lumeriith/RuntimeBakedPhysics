@@ -527,6 +527,25 @@ PxConvexMesh* PhysSimulator::GetConvexMeshInternal(UStaticMesh* Mesh, int Convex
 			Cursor++;
 		}
 	}
+
+	if (PVerts.size() < 8)
+	{
+		FMessageLog("PhysSimulator").Info(
+		FText::Format(
+			FText::FromString("Skipping Mesh Generation of {0}, too few vertices before culling: {1}"),
+			FText::FromString(Mesh->GetName()),
+			PVerts.size()
+		));
+		return nullptr;
+	}
+	const int NumOfVertsBeforeCull = PVerts.size();
+	const PxVec3 BasePoint = PVerts[0];
+	for (int i = PVerts.size() - 1; i >= 1; i--)
+	{
+		auto Delta = BasePoint - PVerts[i];
+		if (Delta.magnitudeSquared() < 25)
+			PVerts.erase(PVerts.begin() + i);
+	}
 	
 	PxConvexMeshDesc convexDesc;
 	convexDesc.points.count     = PVerts.size();
@@ -538,11 +557,38 @@ PxConvexMesh* PhysSimulator::GetConvexMeshInternal(UStaticMesh* Mesh, int Convex
 				PxConvexFlag::eDISABLE_MESH_VALIDATION | 
 					PxConvexFlag::eFAST_INERTIA_COMPUTATION;
 	convexDesc.vertexLimit		= 40;
-	
-	const auto ConvexMesh = Cooking->createConvexMesh(convexDesc,
-		Physics->getPhysicsInsertionCallback());
-	if (ConvexMesh == nullptr)
+
+	if (PVerts.size() < 8)
+	{
+		FMessageLog("PhysSimulator").Info(
+		FText::Format(
+			FText::FromString("Skipping Mesh Generation of {0}, too few vertices after culling: {1} -> {2}"),
+			FText::FromString(Mesh->GetName()),
+			NumOfVertsBeforeCull,
+			PVerts.size()
+		));
 		return nullptr;
-	ConvexMeshes[Id] = ConvexMesh;
-	return ConvexMesh;
+	}
+	
+	if (true)
+	{
+		PxDefaultMemoryOutputStream Buf;
+		PxConvexMeshCookingResult::Enum Res;
+		if (!Cooking->cookConvexMesh(convexDesc, Buf, &Res)) return nullptr;
+		PxDefaultMemoryInputData Input(Buf.getData(), Buf.getSize());
+		const auto ConvexMesh = Physics->createConvexMesh(Input);
+		if (ConvexMesh == nullptr)
+			return nullptr;
+		ConvexMeshes[Id] = ConvexMesh;
+		return ConvexMesh;
+	}
+	else
+	{
+		const auto ConvexMesh = Cooking->createConvexMesh(convexDesc,
+			Physics->getPhysicsInsertionCallback());
+		if (ConvexMesh == nullptr)
+			return nullptr;
+		ConvexMeshes[Id] = ConvexMesh;
+		return ConvexMesh;
+	}
 }

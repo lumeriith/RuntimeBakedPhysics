@@ -26,6 +26,9 @@ public:
 	bool bVisualizeSoD = true;
 
 	UPROPERTY(EditAnywhere)
+	bool bPlayEffects = true;
+
+	UPROPERTY(EditAnywhere)
 	UMaterialInterface* ReplacedMaterial;
 
 private:

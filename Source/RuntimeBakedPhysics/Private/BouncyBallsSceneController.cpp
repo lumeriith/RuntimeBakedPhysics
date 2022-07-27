@@ -42,6 +42,9 @@ void ABouncyBallsSceneController::DidStartSimulateOnDemand(AAdvPhysScene* Scene,
 	if (!bVisualizeSoD) return;
 	const auto& Comp = Scene->DynamicObjEntries[ObjIndex].Comp;
 	Comp->SetMaterial(0, ReplacedMaterial);
+
+	if (!bPlayEffects) return;
+	
 	TArray<UParticleSystemComponent*> Particles;
 	TArray<UAudioComponent*> Audios;
 	
