@@ -382,7 +382,7 @@ void PhysSimulator::GetShapeInternal(const UStaticMeshComponent* Comp, EShapeTyp
 			const auto NewShape = Physics->createShape(TriGeom, *PMaterial);
 			OutShape.Shapes.push_back(NewShape);
 		}
-		return;
+		if (TriMeshes.Num() > 0) return;
 	}
 	
 	const auto& AggGeom = Comp->GetStaticMesh()->GetBodySetup()->AggGeom;
