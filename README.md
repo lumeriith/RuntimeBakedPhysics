@@ -1,4 +1,4 @@
-# UE5-RuntimeBakedPhysics
+# RuntimeBakedPhysics
 PoC of Creating Complex and Performant Physics Scene in UE5 Using Various Techniques
 ## Disclaimer
 Most of the demos make heavy use of proprietary UE Marketplace assets, which are not included in this repo due to their proprietary license.
